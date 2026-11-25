@@ -14,7 +14,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
 | M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (recounted 2026-11-25 with `eval/m5_labels.py`: m5 + m5s + m5e and the additions, each (change, block) pair once): needs_review **54 rows** (46 in the pools + 8 additions in `m5s_additions_ai.csv`) = **61 change-block pairs**. **Historical** blocks (decided 2026-11-25, `src/kg/historical.py`: every block of an amending act, i.e. a title with "(ฉบับที่ N)", and reason notes starting "หมายเหตุ :- เหตุผลในการประกาศใช้") are kept with their labels but left out of the main numbers and reported as their own row: 11 rows / 11 pairs (states 6, cites 5). **Main: 43 rows (states 7, cites 30, depends 6) = 50 pairs (states 7, cites 34, depends 9).** The additions file has 8 rows (not 10) and no rows for x-S450 / x-S451; those T5 ข้อ 16 blocks are only in m5e (S13-E01 / E02), so nothing is counted twice. x-S097 appears twice (XS11 cites, XS14 depends): two rows. Historical states rows: 6 of 13 (S08-B09, S08-E02, S08-E05, S10-B01, S11-B11, S14-B11), not 8; the other 7 are current rules in E2, E4, T3, T4, T5 |
-| M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Step 3 (values) measured and written to the graph (L2-v2) |
+| M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Step 3 (values) measured and written to the graph (L2-v2). Step 4 (local LLM fallback) measured offline: not adopted, stopped for the user's decision |
 | M5-M7 | Not started |
 
 ## Label provenance (corrected 2026-11-25)
@@ -381,6 +381,34 @@ table agreed 2026-11-25 before the run):
   both "สามสิบวัน" (about the payment) and "หกสิบปี" (the retirement age).
 - Not checked: whether each value is attached to the right entity (no labels
   for values).
+
+**Step 4, local LLM fallback** (decided by the user 2026-11-25: local first,
+no API; `src/kg/llm.py`, `prompts/mentions_v1.md`, `eval/m4_llm_fallback.py`,
+results in `eval/results/m4_llm_fallback_ai.md`; **scored against the AI
+labels**, most pairs from synthetic edits by the same reviewer):
+- Model `qwen3.5:4b-q4_K_M` via Ollama 0.40.18 (3.3 GB download; 3.1 GB loaded,
+  100% GPU, context 2048), temperature 0, `think: false` (no thinking text in
+  any reply). Gemma 4 E4B dropped for now: Ollama lists it at 6.6-9.5 GB, over
+  the 6 GB card.
+- Fallback on body blocks with no non-hub registry entity (126 Thai, 45 English
+  in the initial corpus). Kept terms must occur in the block (10% dropped);
+  new terms are LLM-sourced entities, never merged into registry entities.
+- Pairs linked (states + depends, 16): A registry 6 (th 3/5, en 3/11); B with
+  the LLM **7** (en 4/11, one more: C08). Negatives linked: English 10 -> 29 of
+  1,591 (1% -> 2%), Thai unchanged. Blocks without any entity: Thai 126 -> 88,
+  English 45 -> 18.
+- JSON valid on the first attempt 254 / 254 (stability rerun 171 / 171);
+  stability Jaccard Thai 0.91, English 0.98; 2.9 s and about 456 / 26 tokens
+  per block.
+- Mention precision / recall: not reported, the person's sheet is empty.
+- **Reading (the user's rule):** B does not link clearly more English pairs.
+  The 7 English pairs still unlinked are joined by a period ("first 90 days" /
+  "first week", "first year"), by names at a different scope ("Short Term and
+  Long Term Disability policies" vs "short-term disability claim"), by a parent
+  concept ("Medical Insurance" vs "Health Insurance") or by different words for
+  the same thing ("standard-issue computer" vs "specs"). A bigger model would
+  not fix these by extracting entities. **Stopped 2026-11-26 for the user's
+  decision**; nothing written to Neo4j, no API used.
 
 Not checked: precision of single mentions (the blind sheet
 `data/labels/m4_mentions_sample_human.csv`, 20 Thai + 20 English blocks, is

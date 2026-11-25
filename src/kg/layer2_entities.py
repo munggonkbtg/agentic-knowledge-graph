@@ -362,3 +362,82 @@ def flag_hubs(registry: EntityRegistry, share: dict[str, float], cutoff: float |
 def body_block_counts(docs: Iterable[ParsedDocument]) -> dict[str, int]:
     return dict(Counter(d.document.language.value for d in docs for pb in d.blocks
                         if pb.block.role.value == "body"))
+
+
+# ---------------------------------------------------------------- LLM fallback (M4 step 4)
+
+
+@dataclass
+class FallbackStats:
+    blocks_called: int = 0
+    failures: int = 0
+    valid_first: int = 0
+    returned: int = 0
+    dropped: int = 0          # terms that do not occur in the block
+    other: int = 0            # kept terms of type Other (counted, not linked)
+    linked_existing: int = 0  # kept terms that match a registry alias
+    new_terms: int = 0        # kept terms that became LLM-sourced entities
+
+
+def occurs_in(term: str, text: str, language: str) -> bool:
+    """The guard against invented entities: the term must occur in the block
+    after the same normalization the registry matcher uses (Thai: compact form,
+    markers removed; English: case-insensitive, space = hyphen)."""
+    if not term.strip():
+        return False
+    if language == "th":
+        return compact(_clean(term))[0] in compact(_clean(text))[0]
+    words = [re.escape(w) for w in re.split(r"[\s-]+", term.strip()) if w]
+    return re.search(r"(?<![\w-])" + r"[\s-]+".join(words) + r"(?![\w-])", text, re.I) \
+        is not None
+
+
+class LLMFallback:
+    """Runs the LLM on blocks where the registry found few non-hub entities.
+    Kept terms either link to an existing registry entity (by alias) or become
+    LLM-sourced entities (id "llm:<type>:<lang>:<slug>", source "llm:<model>"),
+    never merged into a registry entity (entity resolution is M6)."""
+
+    def __init__(self, registry: EntityRegistry, client, max_entities: int | None) -> None:
+        self.registry = registry
+        self.client = client
+        self.max_entities = max_entities
+        self.new_entities: dict[str, EntityEntry] = {}
+        self.stats = FallbackStats()
+
+    def needs_llm(self, n_entities: int) -> bool:
+        return self.max_entities is not None and n_entities <= self.max_entities
+
+    def entities_for(self, text: str, language: str, registry_entities: set[str],
+                     use_cache: bool = True) -> set[str]:
+        """Entity ids the LLM adds for this text (empty when not needed)."""
+        if not self.needs_llm(len(registry_entities)):
+            return set()
+        self.stats.blocks_called += 1
+        res = self.client.extract_mentions(text, use_cache=use_cache)
+        if res.mentions is None:
+            self.stats.failures += 1
+            return set()
+        self.stats.valid_first += res.valid_first
+        out = set()
+        for m in res.mentions:
+            self.stats.returned += 1
+            if not occurs_in(m.term, text, language):
+                self.stats.dropped += 1
+                continue
+            if m.type == "Other":
+                self.stats.other += 1
+                continue
+            known = self.registry.get(language, m.term)
+            if known is not None:
+                self.stats.linked_existing += 1
+                out.add(known.entity_id)
+                continue
+            key = EntityRegistry.key(language, m.term)
+            eid = f"llm:{m.type.lower()}:{language}:{slug(key)}"
+            e = self.new_entities.setdefault(eid, EntityEntry(eid, m.term, m.type, language))
+            e.aliases.add(m.term)
+            e.sources.add(f"llm:{getattr(self.client.s, 'model', 'unknown')}")
+            self.stats.new_terms += 1
+            out.add(eid)
+        return out

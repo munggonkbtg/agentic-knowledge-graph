@@ -88,6 +88,28 @@ class Layer2Settings(BaseModel):
     manual_file: Path = Path("registry/entities_manual.yaml")
     rule_version: str = "L2-v2"
     mention_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    # LLM fallback (M4 step 4): run on body blocks with at most this many non-hub
+    # registry entities. None = never.
+    llm_fallback_max_entities: int | None = Field(default=0, ge=0)
+
+
+class LLMSettings(BaseModel):
+    """A local model behind Ollama (no key needed). If a runtime ever needs a key,
+    it is read from an environment variable, never from this file."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+    runtime: str = "ollama"
+    endpoint: str = "http://localhost:11434"
+    model: str = "qwen3.5:4b-q4_K_M"
+    num_ctx: int = Field(default=2048, ge=256)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    think: bool = False
+    max_retries: int = Field(default=2, ge=0, le=5)
+    timeout_seconds: float = Field(default=120.0, gt=0)
+    prompt_version: str = "mentions-v1"
+    prompt_file: Path = Path("prompts/mentions_v1.md")
+    cache_file: Path = Path("data/cache/llm.sqlite")
+    confidence: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
 class AppConfig(BaseModel):
@@ -101,6 +123,7 @@ class AppConfig(BaseModel):
     layer1: Layer1Settings = Layer1Settings()
     embedding: EmbeddingSettings = EmbeddingSettings()
     layer2: Layer2Settings = Layer2Settings()
+    llm: LLMSettings = LLMSettings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

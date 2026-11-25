@@ -116,7 +116,27 @@ layer2:
   # Confidence on MENTIONS from an exact registry match. PROVISIONAL until
   # measured on the blind MENTIONS sheet (data/labels/m4_mentions_sample_human.csv).
   mention_confidence: 0.8
+  # LLM fallback (M4 step 4): blocks with at most this many non-hub registry
+  # entities go to the LLM. 0 = only blocks with none. Changed only with the user.
+  llm_fallback_max_entities: 0
+
+llm:
+  # Local model behind Ollama (decided 2026-11-25: local first, no API in M4
+  # step 4). No key is needed; a runtime that needs one reads it from an
+  # environment variable. All calls go through src/kg/llm.py.
+  runtime: ollama
+  endpoint: http://localhost:11434
+  # Explicit quantization tag (Ollama lists qwen3.5:4b-q4_K_M at 3.3 GB).
+  model: qwen3.5:4b-q4_K_M
+  num_ctx: 2048          # blocks are short; GPU memory is not
+  temperature: 0.0       # extraction: deterministic decoding, not the card's chat defaults
+  think: false           # thinking mode off for extraction
+  max_retries: 2         # invalid JSON: retried this many times, then a recorded failure
+  timeout_seconds: 120
+  prompt_version: mentions-v1
+  prompt_file: prompts/mentions_v1.md
+  cache_file: data/cache/llm.sqlite
+  confidence: 0.6        # PROVISIONAL, below registry matches (0.8)
 
 # Later milestones will add sections here, for example:
-#   llm:    model names, prompt_version                             (M3+)
 #   impact: N (checker budget)                                      (M5)
