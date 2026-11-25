@@ -17,12 +17,12 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event2 | 0.7 | 9 | 5 | 0 | 4 | 9 |
 | event2 | 0.8 | 9 | 4 | 0 | 5 | 10 |
 | event2 | 0.9 | 9 | 4 | 0 | 5 | 10 |
-| event3 | 0.4 | 290 | 28 | 1 | 1 | 65 |
-| event3 | 0.5 | 290 | 28 | 1 | 1 | 65 |
-| event3 | 0.6 | 290 | 27 | 1 | 2 | 66 |
-| event3 | 0.7 | 290 | 24 | 1 | 5 | 69 |
-| event3 | 0.8 | 290 | 20 | 1 | 9 | 73 |
-| event3 | 0.9 | 290 | 20 | 1 | 9 | 73 |
+| event3 | 0.4 | 290 | 20 | 1 | 9 | 73 |
+| event3 | 0.5 | 290 | 20 | 1 | 9 | 73 |
+| event3 | 0.6 | 290 | 19 | 1 | 10 | 74 |
+| event3 | 0.7 | 290 | 16 | 1 | 13 | 77 |
+| event3 | 0.8 | 290 | 12 | 1 | 17 | 81 |
+| event3 | 0.9 | 290 | 12 | 1 | 17 | 81 |
 
 ## Edited and moved pairs at threshold 0.4, lowest score first
 
@@ -66,4 +66,4 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event3 | edited | 0.89 | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 9::b0` | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 9::b0` |
 | event3 | edited | 0.91 | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b1` | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b1` |
 | event3 | edited | 0.94 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b0` | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b0` |
-| event3 | edited | 0.94 | `th-labour-protection-act-2541::เชิงอรรถ::b64` | `th-labour-protection-act-2541::เชิงอรรถ::b63` |
+| event3 | edited | 0.94 | `th-labour-protection-act-2541::หมวด 11 ค่าชดเชย > มาตรา 118::b1` | `th-labour-protection-act-2541::หมวด 11 ค่าชดเชย > มาตรา 118::b1` |

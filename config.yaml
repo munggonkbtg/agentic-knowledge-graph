@@ -35,6 +35,11 @@ diff:
   # Look for removed blocks among the added blocks of the *other* documents in the
   # same upload event (e.g. the severance paragraph moving from E3 to E2).
   detect_cross_document_moves: true
+  # Blocks under these headings (normalized, any level) are matched by identical
+  # text only (pass 1); passes 2, 2b and 3 skip them. The Thai footnote lists are
+  # template text ("มาตรา X แก้ไขเพิ่มเติมโดย ... (ฉบับที่ Y)"), so similarity pairs
+  # unrelated entries.
+  exact_only_sections: ["เชิงอรรถ"]
 
 # Later milestones will add sections here, for example:
 #   layer2: entity types, NER threshold                            (M4)

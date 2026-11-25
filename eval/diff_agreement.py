@@ -4,9 +4,12 @@ Reads the review sheet after a person has filled in the ``verdict`` column
 ('correct' or 'wrong') and reports agreement per event and per status.
 
 Rows with identical text at the same position are not in the sheet (nothing to
-judge) and are counted separately as "not reviewed, identical".
+judge). Rows under ``diff.exact_only_sections`` (footnote lists) are reported as
+"not counted": their status follows from the exact-text rule.
 
-Run:  uv run python eval/diff_agreement.py [data/labels/m2_diff_review.csv]
+Only the ``verdict`` column counts. ``ai_suggestion`` (written by an AI) is ignored.
+
+Run:  uv run python eval/diff_agreement.py [data/labels/m2_diff_review_v3.csv]
 Writes counts only (no document text) to eval/results/m2_diff_agreement.md.
 """
 
@@ -17,17 +20,33 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from kg.config import load_config
+
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SHEET = ROOT / "data" / "labels" / "m2_diff_review.csv"
+DEFAULT_SHEET = ROOT / "data" / "labels" / "m2_diff_review_v3.csv"
 VALID = {"correct", "wrong"}
 
 
-def summarize(rows: list[dict]) -> dict:
+def in_sections(r: dict, sections: list[str]) -> bool:
+    """True if the row's old or new block sits under one of these headings."""
+    for bid in (r.get("old_block_id", ""), r.get("new_block_id", "")):
+        if bid and any(h in sections for h in bid.split("::")[1].split(" > ")):
+            return True
+    return False
+
+
+def summarize(rows: list[dict], exact_only: list[str] | None = None) -> dict:
+    """Agreement per (event, status). Rows under `exact_only` headings are counted
+    apart: their status follows from the exact-text rule, so there is nothing to judge."""
     groups: dict[tuple[str, str], dict[str, int]] = defaultdict(
         lambda: {"rows": 0, "labelled": 0, "correct": 0})
     invalid: list[str] = []
     wrong_scores: list[tuple[str, str, str]] = []
+    excluded = 0
     for r in rows:
+        if exact_only and in_sections(r, exact_only):
+            excluded += 1
+            continue
         g = groups[(r["event"], r["status"])]
         g["rows"] += 1
         verdict = r.get("verdict", "").strip().lower()
@@ -44,7 +63,7 @@ def summarize(rows: list[dict]) -> dict:
             wrong_scores.append((r["row_id"], r["status"], score))
     total = {k: sum(g[k] for g in groups.values()) for k in ("rows", "labelled", "correct")}
     return {"groups": dict(groups), "total": total, "invalid": invalid,
-            "wrong_scores": wrong_scores}
+            "wrong_scores": wrong_scores, "excluded": excluded, "exact_only": exact_only or []}
 
 
 def _pct(a: int, b: int) -> str:
@@ -60,6 +79,9 @@ def render(s: dict) -> str:
     t = s["total"]
     out += ["", f"**All rows:** {t['labelled']} of {t['rows']} labelled, "
             f"agreement {_pct(t['correct'], t['labelled'])}."]
+    if s["excluded"]:
+        out.append(f"\nNot counted: {s['excluded']} rows under exact-text-only sections "
+                   f"({', '.join(s['exact_only'])}).")
     if s["invalid"]:
         out.append(f"\nRows with a verdict other than correct/wrong (ignored): "
                    f"{', '.join(s['invalid'])}")
@@ -73,7 +95,8 @@ def main() -> None:
     sheet = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SHEET
     with sheet.open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
-    text = render(summarize(rows))
+    exact_only = load_config(ROOT / "config.yaml").diff.exact_only_sections
+    text = render(summarize(rows, exact_only))
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
     (ROOT / "eval" / "results" / "m2_diff_agreement.md").write_text(text, encoding="utf-8")
     print(text)

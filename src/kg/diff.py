@@ -11,6 +11,10 @@ Given the old and new version of a document, label every block:
                   document uploaded in the same event (exact or similar text).
 * ``removed`` / ``added`` – everything left over.
 
+Blocks under a heading listed in ``diff.exact_only_sections`` (the Thai footnote
+lists) are matched in pass 1 only: their text is a template, so similarity would
+pair unrelated entries.
+
 "Same section" means the same normalized heading path. With
 ``align_renamed_sections`` a renamed heading still counts as the same section when
 most of its unchanged blocks went to one new section.
@@ -60,6 +64,10 @@ def similarity(a: str, b: str) -> float:
 
 def _section_paths(doc: ParsedDocument) -> dict[str, tuple[str, ...]]:
     return {ps.section.section_id: ps.section.heading_path for ps in doc.sections}
+
+
+def _exact_only(heading_path: tuple[str, ...], cfg: DiffSettings) -> bool:
+    return any(h in cfg.exact_only_sections for h in heading_path)
 
 
 def _greedy(
@@ -125,14 +133,18 @@ def diff_versions(
                 section_map[op] = target
                 claimed.add(target)
 
+    # Blocks in exact-only sections (e.g. footnote lists) stop after pass 1.
+    old_fuzzy = {i for i in old_left if not _exact_only(old_path[olds[i].section_id], cfg)}
+    new_fuzzy = {i for i in new_left if not _exact_only(new_path[news[i].section_id], cfg)}
+
     # ---- pass 2: similar text within the same (aligned) section -------------
-    old_norm = {i: norm.normalize(olds[i].block.text) for i in old_left}
-    new_norm = {i: norm.normalize(news[i].block.text) for i in new_left}
+    old_norm = {i: norm.normalize(olds[i].block.text) for i in old_fuzzy}
+    new_norm = {i: norm.normalize(news[i].block.text) for i in new_fuzzy}
     new_by_path: dict[tuple[str, ...], list[int]] = defaultdict(list)
-    for ni in new_left:
+    for ni in new_fuzzy:
         new_by_path[new_path[news[ni].section_id]].append(ni)
     edit_pairs = []
-    for oi in old_left:
+    for oi in old_fuzzy:
         target = section_map.get(old_path[olds[oi].section_id])
         if target is None:
             continue
@@ -143,6 +155,8 @@ def diff_versions(
         matches.append(BlockMatch(MatchStatus.EDITED, olds[oi], news[ni], score))
         old_left.discard(oi)
         new_left.discard(ni)
+        old_fuzzy.discard(oi)
+        new_fuzzy.discard(ni)
 
     # ---- pass 2b: very similar text in a different section ------------------
     # Catches a paragraph that moved to another section AND was edited. It needs
@@ -151,7 +165,7 @@ def diff_versions(
         cross_pairs = [
             (similarity(old_norm[oi], new_norm[ni]),
              abs(olds[oi].block.order - news[ni].block.order), oi, ni)
-            for oi in old_left for ni in new_left
+            for oi in old_fuzzy for ni in new_fuzzy
         ]
         for oi, ni, score in _greedy(cross_pairs, cfg.cross_section_edit_threshold):
             matches.append(BlockMatch(MatchStatus.EDITED, olds[oi], news[ni], score))
@@ -196,10 +210,19 @@ def diff_event(
 
 def _detect_moves(results: list[DocumentDiff], cfg: DiffSettings, norm: Normalizer) -> None:
     """Pass 3: pair removed blocks with added blocks of *other* documents."""
+    paths: dict[str, tuple[str, ...]] = {}
+    for d in results:
+        for doc in (d.old, d.new):
+            if doc is not None:
+                paths.update(_section_paths(doc))
+
+    def fuzzy(pb: ParsedBlock) -> bool:
+        return not _exact_only(paths[pb.section_id], cfg)
+
     removed = [(d, i, m) for d in results for i, m in enumerate(d.matches)
-               if m.status == MatchStatus.REMOVED]
+               if m.status == MatchStatus.REMOVED and fuzzy(m.old)]
     added = [(d, i, m) for d in results for i, m in enumerate(d.matches)
-             if m.status == MatchStatus.ADDED]
+             if m.status == MatchStatus.ADDED and fuzzy(m.new)]
     pairs = []
     for ri, (rd, _, rm) in enumerate(removed):
         r_text = norm.normalize(rm.old.block.text)

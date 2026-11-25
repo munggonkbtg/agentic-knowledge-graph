@@ -38,6 +38,7 @@ class DiffSettings(BaseModel):
     cross_section_edit_threshold: float | None = Field(default=0.8, ge=0.0, le=1.0)
     align_renamed_sections: bool = True
     detect_cross_document_moves: bool = True
+    exact_only_sections: list[str] = Field(default_factory=lambda: ["เชิงอรรถ"])
 
 
 class AppConfig(BaseModel):

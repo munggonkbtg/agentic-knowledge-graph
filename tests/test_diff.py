@@ -12,7 +12,8 @@ from kg.layer0_structure import Normalizer, parse_corpus, parse_file
 
 L0 = Layer0Settings()
 NORM = Normalizer(L0)
-CFG = DiffSettings(edit_similarity_threshold=0.5, cross_section_edit_threshold=0.8)
+CFG = DiffSettings(edit_similarity_threshold=0.5, cross_section_edit_threshold=0.8,
+                   exact_only_sections=["เชิงอรรถ"])
 
 LOREM_A = "The quick brown fox jumps over the lazy dog near the river bank today."
 LOREM_B = "Completely different sentence about quarterly budgets and spreadsheets."
@@ -186,3 +187,50 @@ def test_agreement_summary_counts_labels():
     assert s["groups"][("e1", "edited")] == {"rows": 3, "labelled": 2, "correct": 1}
     assert s["invalid"] == ["4"]
     assert s["wrong_scores"] == [("2", "edited", "0.6")]
+
+
+def test_exact_only_sections_skip_similarity_passes(tmp_path):
+    fn_old = "[1] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 4) พ.ศ. 2553"
+    fn_new = "[2] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 7) พ.ศ. 2562"
+    same = "[3] มาตรา 5 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 2) พ.ศ. 2551"
+    old = _doc(tmp_path, "a.md", f"## เชิงอรรถ\n\n{fn_old}\n\n{same}\n")
+    new = _doc(tmp_path, "b.md", f"## เชิงอรรถ\n\n{fn_new}\n\n{same}\n")
+    exact = diff_versions(old, new, CFG, NORM)
+    assert _by_status(exact) == {MatchStatus.UNCHANGED: 1, MatchStatus.REMOVED: 1,
+                                 MatchStatus.ADDED: 1}
+    # Without the rule, the two template entries pair up as an "edit".
+    fuzzy = diff_versions(old, new, CFG.model_copy(update={"exact_only_sections": []}), NORM)
+    assert _by_status(fuzzy)[MatchStatus.EDITED] == 1
+
+
+def test_no_footnote_entry_is_paired_by_similarity(events):
+    cfg = load_config_default().diff
+    assert "เชิงอรรถ" in cfg.exact_only_sections
+    for results in events.values():
+        for d in results:
+            for m in d.matches:
+                ids = (m.old.block.block_id if m.old else "") + (m.new.block.block_id if m.new else "")
+                if "::เชิงอรรถ::" in ids:
+                    assert m.status in (MatchStatus.UNCHANGED, MatchStatus.REMOVED,
+                                        MatchStatus.ADDED)
+
+
+def load_config_default():
+    from kg.config import load_config
+    return load_config(Path(__file__).resolve().parents[1] / "config.yaml")
+
+
+def test_agreement_excludes_exact_only_rows():
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "eval"))
+    from diff_agreement import summarize
+
+    base = {"event": "e3", "status": "added", "similarity": "", "closest_other_similarity": "",
+            "old_block_id": "", "verdict": "wrong"}
+    rows = [
+        {**base, "row_id": "1", "new_block_id": "th-x::เชิงอรรถ::b3"},
+        {**base, "row_id": "2", "new_block_id": "th-x::หมวด 1 > มาตรา 5::b0"},
+    ]
+    s = summarize(rows, ["เชิงอรรถ"])
+    assert s["excluded"] == 1
+    assert s["total"] == {"rows": 1, "labelled": 1, "correct": 0}
