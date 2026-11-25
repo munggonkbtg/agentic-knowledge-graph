@@ -55,8 +55,8 @@ def person_view(row: dict, key: dict) -> tuple[str, set[tuple[str, str]]]:
 
 
 def score(rows: list[dict], key: dict,
-          diff: dict[str, tuple[str, tuple[str, str] | None]]) -> dict:
-    """diff: old_block_uid -> (diff status, (doc_key, new_block_id) or None)."""
+          diff: dict[str, tuple[str, frozenset[tuple[str, str]]]]) -> dict:
+    """diff: old_block_uid -> (diff status, set of (doc_key, new_block_id); empty if none)."""
     groups: dict[tuple[str, str], dict[str, int]] = defaultdict(
         lambda: {"answered": 0, "status_agree": 0, "partner_agree": 0, "both_agree": 0})
     disagreements = []
@@ -73,7 +73,11 @@ def score(rows: list[dict], key: dict,
         d_raw, d_partner = diff[info["old_block_uid"]]
         d_status = DIFF_TO_STATUS[d_raw]
         status_ok = p_status == d_status
-        partner_ok = (d_partner is None and not p_partners) or (d_partner in p_partners)
+        # Agree when every new block the diff names is one the person named (both
+        # empty for "removed"). A split the diff found counts only if the person
+        # named all of its blocks.
+        partner_ok = (not d_partner and not p_partners) or (bool(d_partner)
+                                                             and d_partner <= p_partners)
         g = groups[(row["event"], info["stratum"])]
         g["answered"] += 1
         g["status_agree"] += status_ok
@@ -128,18 +132,29 @@ def current_diff() -> dict[str, tuple[str, tuple[str, str] | None]]:
         for d in diff_event(olds, uploaded, cfg.diff, norm):
             for m in d.matches:
                 if m.old is not None:
-                    partner = (m.new.block.doc_key, m.new.block.block_id) if m.new else None
-                    out[m.old.block.block_uid] = (m.status.value, partner)
+                    partners = frozenset((pb.block.doc_key, pb.block.block_id)
+                                         for pb in m.new_blocks)
+                    out[m.old.block.block_uid] = (m.status.value, partners)
     return out
 
 
 def main() -> None:
-    key = json.loads((LABELS / "m2_blind_key.json").read_text(encoding="utf-8"))
-    with (LABELS / "m2_blind_sample.csv").open(encoding="utf-8-sig", newline="") as f:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--name", default="m2_blind",
+                    help="m2_blind (random sample) or m2_known (hand-picked known cases)")
+    name = ap.parse_args().name
+    key = json.loads((LABELS / f"{name}_key.json").read_text(encoding="utf-8"))
+    with (LABELS / f"{name}_sample.csv").open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
     text = render(score(rows, key, current_diff()))
+    if name != "m2_blind":
+        text = text.replace("# M2: diff vs the person's blind answers",
+                            f"# M2: diff vs the person's blind answers — {name} "
+                            "(hand-picked cases, not a random sample)")
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
-    (ROOT / "eval" / "results" / "m2_blind_agreement.md").write_text(text, encoding="utf-8")
+    (ROOT / "eval" / "results" / f"{name}_agreement.md").write_text(text, encoding="utf-8")
     print(text)
 
 

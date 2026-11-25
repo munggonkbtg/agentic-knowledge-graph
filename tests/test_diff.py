@@ -33,7 +33,7 @@ def _by_status(matches):
 
 def _assert_one_to_one(old, new, matches):
     olds = [m.old.block.block_uid for m in matches if m.old]
-    news = [m.new.block.block_uid for m in matches if m.new]
+    news = [pb.block.block_uid for m in matches for pb in m.new_blocks]
     assert sorted(olds) == sorted(pb.block.block_uid for pb in old.blocks)
     assert sorted(news) == sorted(pb.block.block_uid for pb in new.blocks)
 
@@ -132,7 +132,7 @@ def events(need_uploads):
 def test_every_block_is_used_exactly_once(events):
     for results in events.values():
         olds = [m.old.block.block_uid for d in results for m in d.matches if m.old]
-        news = [m.new.block.block_uid for d in results for m in d.matches if m.new]
+        news = [pb.block.block_uid for d in results for m in d.matches for pb in m.new_blocks]
         assert len(olds) == len(set(olds))
         assert sorted(news) == sorted(pb.block.block_uid for d in results for pb in d.new.blocks)
         expected_old = [pb.block.block_uid for d in results if d.old for pb in d.old.blocks]
@@ -256,3 +256,57 @@ def test_agreement_excludes_exact_only_rows():
     with_role = [{**rows[0], "role": "body"}, {**rows[1], "role": "footnote"}]
     s = summarize(with_role, ["เชิงอรรถ"])
     assert s["excluded"] == 1 and s["wrong_scores"][0][0] == "1"
+
+
+# ------------------------------------------------------------- moved and split (pass 3)
+
+SPLIT_OLD = ("If your contract ends, you may receive a severance payment of four weeks of pay. "
+             "After one full year you receive two more weeks for every year you worked here. "
+             "Unused vacation days are paid out in your final salary as well.")
+SPLIT_PARTS = ["If your contract ends, you may receive a severance payment of four weeks of pay.",
+               "After one full year you receive two more weeks for every year you worked here, "
+               "up to four months.",
+               "Unused vacation days are paid out in your final salary."]
+
+
+def _split_event(tmp_path, window=3, parts=SPLIT_PARTS):
+    old_a = _doc(tmp_path, "a1.md", f"## S\n\n{LOREM_A}\n\n{SPLIT_OLD}\n", "doc-a")
+    new_a = _doc(tmp_path, "a2.md", f"## S\n\n{LOREM_A}\n", "doc-a")
+    new_b = _doc(tmp_path, "b2.md", "## Severance\n\n" + "\n\n".join(parts) + "\n", "doc-b")
+    cfg = CFG.model_copy(update={"split_window": window})
+    return {d.doc_key: d.matches for d in diff_event({"doc-a": old_a}, [new_a, new_b], cfg, NORM)}
+
+
+def test_paragraph_moved_and_split_into_consecutive_blocks(tmp_path):
+    res = _split_event(tmp_path)
+    (m,) = [m for m in res["doc-b"] if m.status == MatchStatus.MOVED]
+    assert m.old.block.text == SPLIT_OLD
+    assert [pb.block.text for pb in m.new_blocks] == SPLIT_PARTS
+    assert _by_status(res["doc-b"]) == {MatchStatus.MOVED: 1}  # no part left as "added"
+    assert not any(x.status == MatchStatus.REMOVED for x in res["doc-a"])
+
+
+def test_split_window_one_turns_split_detection_off(tmp_path):
+    res = _split_event(tmp_path, window=1)
+    assert not any(m.status == MatchStatus.MOVED and m.extra_new for m in res["doc-b"])
+
+
+def test_unrelated_neighbour_is_not_joined_into_a_split(tmp_path):
+    # the single matching block stays a one-block move; the unrelated one stays added
+    res = _split_event(tmp_path, parts=[SPLIT_OLD, LOREM_C])
+    (m,) = [m for m in res["doc-b"] if m.status == MatchStatus.MOVED]
+    assert len(m.new_blocks) == 1 and m.similarity == 1.0
+    assert _by_status(res["doc-b"])[MatchStatus.ADDED] == 1
+
+
+def test_removed_block_with_only_unrelated_added_blocks_stays_removed(tmp_path):
+    res = _split_event(tmp_path, parts=[LOREM_B, LOREM_C, "Totally different words here."])
+    assert any(m.status == MatchStatus.REMOVED for m in res["doc-a"])
+    assert not any(m.status == MatchStatus.MOVED for m in res["doc-b"])
+
+
+def test_e3_severance_paragraph_is_moved_and_split_into_e2(events):
+    (m,) = [m for d in events["event2"] for m in d.matches
+            if m.old and m.old.block.block_id.endswith("Performance Improvement Plans::b1")]
+    assert m.status == MatchStatus.MOVED
+    assert [pb.block.doc_key for pb in m.new_blocks] == ["en-severance"] * 3

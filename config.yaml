@@ -49,6 +49,10 @@ diff:
   # paragraphs already score 0.41-0.44, so lowering this alone adds false moves.
   # To be set from the blind labels.
   move_similarity_threshold: 0.5
+  # Pass 3 also compares a removed block with up to this many consecutive added
+  # blocks of another document joined together: a moved paragraph is often split
+  # (E3 -> E2 severance: 0.40-0.49 per block, 0.76 joined). 1 = no splits.
+  split_window: 3
   # Footnote entries (role "footnote", see layer0.footnote_sections) are matched
   # by identical text only: their text is a template ("มาตรา X แก้ไขเพิ่มเติมโดย
   # ... (ฉบับที่ Y)"), so similarity would pair unrelated entries.

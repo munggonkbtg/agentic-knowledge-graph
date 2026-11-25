@@ -49,10 +49,10 @@ def test_person_view_rejects_inconsistent_rows(bad):
 
 def test_score_status_and_partner_separately():
     diff = {
-        "u1": ("unchanged", ("doc-a", "doc-a::S::b0")),  # agrees fully
-        "u2": ("removed", None),                          # person: moved -> disagrees
-        "u3": ("edited", ("doc-a", "doc-a::S::b1")),      # right status, wrong partner
-        "u4": ("removed", None),                          # unanswered
+        "u1": ("unchanged", frozenset({("doc-a", "doc-a::S::b0")})),  # agrees fully
+        "u2": ("removed", frozenset()),                  # person: moved -> disagrees
+        "u3": ("edited", frozenset({("doc-a", "doc-a::S::b1")})),  # right status, wrong partner
+        "u4": ("removed", frozenset()),                  # unanswered
     }
     rows = [row("e1-S01", "same", "e1-N001"), row("e1-S02", "edited", "e1-N003"),
             row("e1-S03", "edited", "e1-N001; e1-N003"), row("e1-S04", "")]
@@ -71,3 +71,15 @@ def test_pick_balances_strata_and_tops_up_a_short_one():
     assert strata.count("text_not_present") == 3 and strata.count("text_still_present") == 7
     chosen = pick(random.Random(1), same=list(range(20)), other=list(range(100, 120)), k=10)
     assert [s for s, _ in chosen].count("text_not_present") == 5
+
+
+def test_split_counts_only_when_the_person_named_every_block():
+    key = {"rows": {"e1-S01": {"doc_key": "doc-a", "old_block_uid": "u1",
+                               "stratum": "known_case"}},
+           "refs": KEY["refs"]}
+    both = frozenset({("doc-b", "doc-b::_::b0"), ("doc-a", "doc-a::S::b0")})
+    diff = {"u1": ("moved", both)}
+    key["refs"] = {**KEY["refs"], "e1-N004": {"doc_key": "doc-b", "new_block_id": "doc-b::_::b0"}}
+    full = score([row("e1-S01", "edited", "e1-N004; e1-N001")], key, diff)
+    part = score([row("e1-S01", "edited", "e1-N004")], key, diff)
+    assert full["total"]["partner_agree"] == 1 and part["total"]["partner_agree"] == 0

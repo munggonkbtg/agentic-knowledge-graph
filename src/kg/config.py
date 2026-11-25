@@ -39,6 +39,7 @@ class DiffSettings(BaseModel):
     edit_similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     cross_section_edit_threshold: float | None = Field(default=0.8, ge=0.0, le=1.0)
     move_similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    split_window: int = Field(default=3, ge=1, le=10)
     align_renamed_sections: bool = True
     detect_cross_document_moves: bool = True
 

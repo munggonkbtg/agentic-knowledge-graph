@@ -56,6 +56,14 @@ class BlockMatch:
     old: ParsedBlock | None
     new: ParsedBlock | None
     similarity: float | None = None  # None when there is no partner
+    # A block moved to another document and split there: the new blocks after
+    # ``new`` (consecutive in that document). Empty otherwise.
+    extra_new: tuple[ParsedBlock, ...] = ()
+
+    @property
+    def new_blocks(self) -> tuple[ParsedBlock, ...]:
+        """Every new block this match covers (several when a moved block was split)."""
+        return ((self.new,) if self.new else ()) + self.extra_new
 
     @property
     def same_position(self) -> bool:
@@ -213,29 +221,69 @@ def diff_event(
     return results
 
 
+def _windows(results: list[DocumentDiff], added: list, size: int) -> list[tuple[int, tuple[int, ...]]]:
+    """Runs of 1..size added blocks that stand next to each other in their new
+    document: (id of the document diff, indexes into ``added``)."""
+    pos = {pb.block.block_uid: k for d in results for k, pb in enumerate(d.new.blocks)}
+    by_doc: dict[int, list[int]] = defaultdict(list)
+    for ai, (ad, _, am) in enumerate(added):
+        by_doc[id(ad)].append(ai)
+    out = []
+    for did, ais in by_doc.items():
+        ais.sort(key=lambda a: pos[added[a][2].new.block.block_uid])
+        for s, first in enumerate(ais):
+            run = [first]
+            out.append((did, tuple(run)))
+            for nxt in ais[s + 1: s + size]:
+                if pos[added[nxt][2].new.block.block_uid] != \
+                        pos[added[run[-1]][2].new.block.block_uid] + 1:
+                    break
+                run.append(nxt)
+                out.append((did, tuple(run)))
+    return out
+
+
 def _detect_moves(results: list[DocumentDiff], cfg: DiffSettings, norm: Normalizer) -> None:
-    """Pass 3: pair removed blocks with added blocks of *other* documents."""
+    """Pass 3: pair removed blocks with added blocks of *other* documents.
+
+    A moved paragraph is often split on the way (the E3 -> E2 severance paragraph
+    became three blocks: 0.40-0.49 against each, 0.76 against the three joined).
+    So a removed block is compared with runs of up to ``diff.split_window``
+    consecutive added blocks; the best run at or above the move threshold wins,
+    each block used once, smaller runs first on ties."""
     removed = [(d, i, m) for d in results for i, m in enumerate(d.matches)
                if m.status == MatchStatus.REMOVED and _fuzzy(m.old)]
     added = [(d, i, m) for d in results for i, m in enumerate(d.matches)
              if m.status == MatchStatus.ADDED and _fuzzy(m.new)]
-    pairs = []
+    windows = _windows(results, added, max(1, cfg.split_window))
+    text = {ai: norm.normalize(am.new.block.text) for ai, (_, _, am) in enumerate(added)}
+    candidates = []
     for ri, (rd, _, rm) in enumerate(removed):
         r_text = norm.normalize(rm.old.block.text)
-        for ai, (ad, _, am) in enumerate(added):
-            if ad is rd:
+        for did, run in windows:
+            if did == id(rd):
                 continue
-            if rm.old.block.content_hash == am.new.block.content_hash:
+            if len(run) == 1 and rm.old.block.content_hash == added[run[0]][2].new.block.content_hash:
                 score = 1.0
             else:
-                score = similarity(r_text, norm.normalize(am.new.block.text))
-            pairs.append((score, 0, ri, ai))
+                score = similarity(r_text, " ".join(text[a] for a in run))
+            if score >= cfg.move_similarity_threshold:
+                candidates.append((score, len(run), ri, run))
+    used_r: set[int] = set()
+    used_a: set[int] = set()
     replace: dict[int, dict[int, BlockMatch | None]] = defaultdict(dict)
-    for ri, ai, score in _greedy(pairs, cfg.move_similarity_threshold):
+    for score, _, ri, run in sorted(candidates, key=lambda c: (-c[0], c[1], c[2], c[3])):
+        if ri in used_r or used_a.intersection(run):
+            continue
+        used_r.add(ri)
+        used_a.update(run)
         rd, r_idx, rm = removed[ri]
-        ad, a_idx, am = added[ai]
+        ad, a_idx, am = added[run[0]]
         # The moved pair is recorded once, on the document it moved *to*.
-        replace[id(ad)][a_idx] = BlockMatch(MatchStatus.MOVED, rm.old, am.new, score)
+        replace[id(ad)][a_idx] = BlockMatch(MatchStatus.MOVED, rm.old, am.new, score,
+                                            tuple(added[a][2].new for a in run[1:]))
+        for a in run[1:]:
+            replace[id(added[a][0])][added[a][1]] = None
         replace[id(rd)][r_idx] = None
     for d in results:
         changes = replace.get(id(d))
@@ -310,10 +358,11 @@ def review_rows(event: str, results: list[DocumentDiff], norm: Normalizer) -> li
                 "old_block_id": m.old.block.block_id if m.old else "",
                 "old_lines": f"{m.old.block.lines.start}-{m.old.block.lines.end}" if m.old else "",
                 "new_file": d.new.version.source_file if m.new else "",
-                "new_block_id": m.new.block.block_id if m.new else "",
-                "new_lines": f"{m.new.block.lines.start}-{m.new.block.lines.end}" if m.new else "",
+                "new_block_id": "; ".join(pb.block.block_id for pb in m.new_blocks),
+                "new_lines": "; ".join(f"{pb.block.lines.start}-{pb.block.lines.end}"
+                                       for pb in m.new_blocks),
                 "old_text": m.old.block.text if m.old else "",
-                "new_text": m.new.block.text if m.new else "",
+                "new_text": "\n\n".join(pb.block.text for pb in m.new_blocks),
                 "closest_other_block_id": other_id,
                 "closest_other_similarity": other_score,
                 "verdict": "",

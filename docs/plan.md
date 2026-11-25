@@ -10,7 +10,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 |---|---|
 | M0 Setup | Done |
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
-| M2 Diff | Built, not verified. On 2026-11-25 the data set was reset to the initial corpus only: upload files, review / blind sheets (including the v1 labels) and result reports were deleted without backup, and the graph was rebuilt with the 8 initial documents. The blind check is redone once upload files are back (`eval/make_blind_sheet.py`) |
+| M2 Diff | **Verified 2026-11-25** by a blind check (30 old blocks, 10 per upload event, person never saw the diff): status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the person said same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional) Known case checked separately (blind, hand-picked): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> person: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | **Done 2026-11-25** (started before M2 was verified, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test: precision 0.94, recall 0.94 |
 | M4-M7 | Not started |
@@ -24,7 +24,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | Text normalization | NFC, whitespace, footnote markers removed, Thai digits -> Arabic, before hashing | Unchanged T1 text 91% with, 54% without |
 | Footnote lists | `role = footnote`; matched by identical text only | Entries are template text; similarity paired unrelated entries |
 | Long lists | Split into items above 1,500 characters | Blocks > 1,500 chars: 16 -> 11. One T1 มาตรา 5 item is still 3,170 chars (source merged definitions into one line) |
-| Diff thresholds | edit 0.5, cross-section 0.8, move 0.5 — **all provisional** | Character similarity of unrelated English paragraphs is already 0.41-0.44; set from blind labels |
+| Diff thresholds | edit 0.5 **supported by the blind check** (person confirmed edits at similarity 0.50, 0.53, 0.58; no false edits); cross-section 0.8 and move 0.5 **still provisional** (no such case in the sample) | Character similarity of unrelated English paragraphs is already 0.41-0.44; set from blind labels |
 | Labels | Only a person's `verdict` / blind answers count; AI suggestions kept in a separate column | v2 labels were written by an AI |
 
 ## M3: document identification + Layer 1 (`REFERENCES`)
@@ -175,7 +175,7 @@ then `eval/references_agreement.py` gives precision and recall against it.
 
 | Item | Where it belongs |
 |---|---|
-| Blocks that split or merge (E1 sick time, E3 -> E2 severance, T1 มาตรา 5 and 118) cannot be expressed by one-to-one matching | After the blind labels show how often it matters |
+| Splits and merges: **done for moves to another document** (split_window = 3). Still one-to-one: splits / merges inside one document (E1 sick time, T1 มาตรา 5 and 118). Evidence for the move rule is thin (1 real split move, 2 non-moves on the pilot) | Check on more upload events; extend to splits inside a document if they matter for impact |
 | Diff results are not stored in the graph (old -> new block for edits) | M5, impact analysis needs them |
 | Edges on the node of an edited block are not moved or closed yet | M5 light / full update |
 | `valid_to IS NULL` cannot use a Neo4j range index | M5, when queries filter on validity |
