@@ -153,8 +153,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", default="m2_blind",
                     help="m2_blind (random sample) or m2_known (hand-picked known cases)")
-    ap.add_argument("--labels", default="both", choices=["human", "ai", "both"],
-                    help="whose answers to score against (both = every source with answers)")
+    ap.add_argument("--labels", default="all",
+                    choices=["human", "ai", "person_seen_ai", "all", "both"],
+                    help="whose answers to score against (all = every source with answers; both = all)")
     args = ap.parse_args()
     name, stem = args.name, f"{args.name}_sample"
     key = json.loads((LABELS / f"{name}_key.json").read_text(encoding="utf-8"))
@@ -173,7 +174,7 @@ def main() -> None:
                 .replace("| row | person | diff |", f"| row | {src} | diff |"))
         (ROOT / "eval" / "results" / f"{name}_agreement_{src}.md").write_text(text, encoding="utf-8")
         print(text, "\n")
-    if len(rows_by) == 2:
+    if {"human", "ai"} <= rows_by.keys():
         text = f"# {name}: human vs AI labels\n\n" + source_agreement(
             rows_by["human"], rows_by["ai"], ANSWER_COLUMNS[:2])
         (ROOT / "eval" / "results" / f"{name}_labels_human_vs_ai.md").write_text(text, encoding="utf-8")

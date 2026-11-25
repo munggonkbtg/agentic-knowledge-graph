@@ -281,7 +281,8 @@ def test_layer2_entities_and_mentions_written_once_then_closed_by_new_rules(stor
     try:
         res = store.write_entity_registry([leave, boss], share, "test-A", T2)
         assert res == {"entities": 2, "aliases": 3, "closed": 0}
-        assert store.write_mentions(doc, mentions, "test-A", 0.8, T2) == {"written": 3, "closed": 0}
+        assert store.write_mentions(doc, mentions, "test-A", 0.8, T2) == {"written": 3, "closed": 0,
+                                                                             "values": 0, "unattached": 0}
         # rerun with the same rules: nothing new, nothing closed
         assert store.write_entity_registry([leave, boss], share, "test-A", T2)["closed"] == 0
         assert store.write_mentions(doc, mentions, "test-A", 0.8, T2)["closed"] == 0
@@ -299,7 +300,8 @@ def test_layer2_entities_and_mentions_written_once_then_closed_by_new_rules(stor
             (leave.entity_id, False, 1.0, 2, 2, ["parser"], [0.8]),
             (boss.entity_id, True, 0.5, 1, 1, ["human"], [0.8])]
         # new rule version: old edges are closed, not deleted
-        assert store.write_mentions(doc, mentions, "test-B", 0.8, T2) == {"written": 3, "closed": 3}
+        assert store.write_mentions(doc, mentions, "test-B", 0.8, T2) == {"written": 3, "closed": 3,
+                                                                             "values": 0, "unattached": 0}
         assert store.write_entity_registry([leave, boss], share, "test-B", T2)["closed"] == 3
         n = store._run("MATCH (b:Block)-[m:MENTIONS]->() WHERE b.doc_key = $k "
                        "RETURN count(m) AS all, sum(CASE WHEN m.valid_to IS NULL THEN 1 ELSE 0 END)"
@@ -307,3 +309,38 @@ def test_layer2_entities_and_mentions_written_once_then_closed_by_new_rules(stor
         assert (n["all"], n["open"]) == (6, 3)
     finally:
         assert store.delete_entities(prefix) == 2
+
+
+def test_layer2_values_on_mentions_and_unattached_values_on_blocks(store, prefix, tmp_path):
+    from kg.layer2_entities import EntityMatcher, EntityRegistry
+
+    key = prefix + "policy"
+    body = ("## Leave\n\nPaid leave is 20 days a year.\n\n"
+            "Requests are answered within 2 working days.\n")
+    doc = parse_file(_file(tmp_path, "p.md", key, "Policy", body), CFG.layer0, T1)
+    store.write_layer0(doc)
+    reg = EntityRegistry()
+    e = reg.add("paid leave", "Concept", "en", "test")
+    # test entity id under the prefix, so cleanup removes it
+    e.entity_id = prefix + "leave"
+    reg.entries = {e.entity_id: e}
+    reg._by_key = {("en", "paid leave"): e.entity_id}
+    ms, loose = EntityMatcher(reg).mentions_with_values(doc, hubs=set())
+    try:
+        store.write_entity_registry([e], {e.entity_id: 0.5}, "test-A", T2)
+        res = store.write_mentions(doc, ms, "test-A", 0.8, T2, loose)
+        # "a year" has no number, so it is not a value
+        assert (res["written"], res["values"], res["unattached"]) == (1, 1, 1)
+        rel = store._run(
+            "MATCH (b:Block)-[m:MENTIONS]->(:Entity {entity_id: $e}) "
+            "RETURN m.value AS v, m.unit AS u, m.base_value AS bv, m.value_text AS t, "
+            "m.attribute AS a", e=e.entity_id).records[0]
+        assert (rel["v"], rel["u"], rel["bv"], rel["t"]) == ([20.0], ["day"], [20.0], ["20 days"])
+        assert rel["a"][0] == f"{e.entity_id}|calendar_days"
+        blk = store._run(
+            "MATCH (b:Block) WHERE b.doc_key = $k AND b.unattached_value IS NOT NULL "
+            "RETURN b.unattached_value AS v, b.unattached_unit AS u, "
+            "b.values_rule_version AS rv", k=key).records
+        assert [(r["v"], r["u"], r["rv"]) for r in blk] == [([2.0], ["work_day"], "test-A")]
+    finally:
+        assert store.delete_entities(prefix) == 1

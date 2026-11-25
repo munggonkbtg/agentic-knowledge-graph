@@ -86,7 +86,7 @@ class Layer2Settings(BaseModel):
     # language are flagged hub = true and not used for candidates. None = no hubs.
     hub_block_share: float | None = Field(default=0.2, gt=0.0, le=1.0)
     manual_file: Path = Path("registry/entities_manual.yaml")
-    rule_version: str = "L2-v1"
+    rule_version: str = "L2-v2"
     mention_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
 

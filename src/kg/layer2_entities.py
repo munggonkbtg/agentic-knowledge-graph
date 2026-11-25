@@ -39,6 +39,7 @@ import yaml
 
 from kg.layer0_structure import ParsedDocument
 from kg.layer1_references import compact, slug
+from kg.values import AttachedValue, attach_values, extract_values
 
 TYPES = ("Concept", "Role", "Artifact", "Body", "Place")
 CORE_TYPES = ("Concept", "Role", "Artifact")
@@ -193,13 +194,28 @@ class EntityRegistry:
         return dict(self._by_key)
 
 
-def load_manual(path: Path) -> list[dict]:
-    """registry/entities_manual.yaml: a list of
-    {name, type, language, aliases: [...]} reviewed by a person."""
+MANUAL_SOURCES = ("documents", "test_pairs")
+MANUAL_REQUIRED = ("name", "type", "language", "source", "added_by", "added_on")
+
+
+def load_manual(path: Path, sources: Iterable[str] | None = None) -> list[dict]:
+    """registry/entities_manual.yaml: a list of {name, type, language, aliases,
+    source, added_by, added_on}. `source` is "documents" (found by reading the
+    documents) or "test_pairs" (taken from the measured review pairs; kept out of
+    headline numbers). `sources` keeps only entries from those sources."""
     if not path.exists():
         return []
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or []
-    return [dict(d) for d in data]
+    out = []
+    for i, d in enumerate(data, start=1):
+        missing = [k for k in MANUAL_REQUIRED if not d.get(k)]
+        if missing:
+            raise ValueError(f"{path.name} entry {i}: missing {', '.join(missing)}")
+        if d["source"] not in MANUAL_SOURCES:
+            raise ValueError(f"{path.name} entry {i}: source must be one of {MANUAL_SOURCES}")
+        if sources is None or d["source"] in set(sources):
+            out.append(dict(d))
+    return out
 
 
 def build_registry(docs: Iterable[ParsedDocument], manual: list[dict] = ()) -> EntityRegistry:
@@ -231,7 +247,8 @@ def build_registry(docs: Iterable[ParsedDocument], manual: list[dict] = ()) -> E
                 reg.add(t, thai_type(t), "th", f"title:{d.document.doc_key}")
     # 5. hand-kept entries
     for m in manual:
-        reg.add(m["name"], m["type"], m["language"], "manual", m.get("aliases") or [])
+        reg.add(m["name"], m["type"], m["language"], f"manual:{m.get('source', 'documents')}",
+                m.get("aliases") or [])
     return reg
 
 
@@ -243,6 +260,7 @@ class Mention:
     block_uid: str
     entity_id: str
     surface: str  # the alias as found (compact form for Thai)
+    values: tuple[AttachedValue, ...] = ()  # values attached to this entity (step 3)
 
 
 class EntityMatcher:
@@ -261,43 +279,69 @@ class EntityMatcher:
 
     def find(self, text: str, language: str) -> list[tuple[str, str]]:
         """[(entity_id, surface)] in text order, no overlapping matches."""
+        return [(eid, s) for eid, s, _, _ in self.find_spans(text, language)]
+
+    def find_spans(self, text: str, language: str) -> list[tuple[str, str, int, int]]:
+        """[(entity_id, surface, start, end)] in text order, no overlaps. start / end
+        are character offsets in the NFC form of `text` (Thai surfaces are the
+        compact form: no spaces, Arabic digits)."""
         taken: list[tuple[int, int]] = []
-        found: list[tuple[int, str, str]] = []
+        found: list[tuple[int, str, str, int]] = []
 
         def free(s: int, e: int) -> bool:
             return all(e <= a or s >= b for a, b in taken)
 
         if language == "th":
-            c = compact(_clean(text))[0]
+            # blank out markers instead of removing them, so offsets stay valid
+            nfc = unicodedata.normalize("NFC", text)
+            c, idx = compact(_MARKERS.sub(lambda m: " " * len(m.group()), nfc))
             for key, eid in self._th:
                 start = c.find(key)
                 while start != -1:
                     end = start + len(key)
                     if free(start, end):
                         taken.append((start, end))
-                        found.append((start, eid, key))
+                        found.append((idx[start], eid, key, idx[end - 1] + 1))
                     start = c.find(key, start + 1)
         else:
             for pattern, _, eid in self._en:
                 for m in pattern.finditer(text):
                     if free(m.start(), m.end()):
                         taken.append((m.start(), m.end()))
-                        found.append((m.start(), eid, m.group(0)))
-        return [(eid, s) for _, eid, s in sorted(found)]
+                        found.append((m.start(), eid, m.group(0), m.end()))
+        return [(eid, s, a, b) for a, eid, s, b in sorted(found)]
 
     def mentions(self, doc: ParsedDocument) -> list[Mention]:
         """One mention per (block, entity): the first surface found."""
-        out = []
+        return self.mentions_with_values(doc, None)[0]
+
+    def mentions_with_values(self, doc: ParsedDocument, hubs: set[str] | None
+                             ) -> tuple[list[Mention], dict[str, list[AttachedValue]]]:
+        """Mentions as in mentions(); with `hubs` given (not None), every value in
+        a block is attached to its nearest non-hub entity (kg.values.attach_values)
+        and carried on that mention. Values in a block with no non-hub entity are
+        returned per block_uid as the second item."""
+        out: list[Mention] = []
+        unattached: dict[str, list[AttachedValue]] = {}
         lang = doc.document.language.value
         for pb in doc.blocks:
             if pb.block.role.value != "body":
                 continue
+            spans = self.find_spans(pb.block.text, lang)
+            by_entity: dict[str, list[AttachedValue]] = defaultdict(list)
+            if hubs is not None:
+                for av in attach_values(extract_values(pb.block.text, lang), spans, hubs):
+                    if av.entity_id is None:
+                        unattached.setdefault(pb.block.block_uid, []).append(av)
+                    else:
+                        by_entity[av.entity_id].append(av)
             seen = set()
-            for eid, surface in self.find(pb.block.text, lang):
+            for eid, surface, _, _ in spans:
                 if eid not in seen:
                     seen.add(eid)
-                    out.append(Mention(pb.block.block_uid, eid, surface))
-        return out
+                    out.append(Mention(pb.block.block_uid, eid, surface,
+                                       tuple(by_entity.get(eid, ()))))
+        return out, unattached
 
 
 def block_share(mentions: Iterable[Mention], body_blocks: dict[str, int],

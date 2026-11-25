@@ -1,6 +1,6 @@
 # M2: diff vs blind answers — m2_known (hand-picked cases, not a random sample)
 
-**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check); 2 of 2 rows answered.
+**Label source: person_seen_ai** (a person who had read the AI reviewer's answers for the same rows; not independent of them, so not a blind human label); 2 of 2 rows answered.
 
 | event | stratum | answered | status agrees | partner agrees | both |
 |---|---|---|---|---|---|

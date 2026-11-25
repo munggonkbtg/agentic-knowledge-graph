@@ -29,7 +29,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
-from compare_embeddings import change_contexts, positives_of, read
+from compare_embeddings import change_contexts, read
 from label_sources import DESCRIPTION, sheet
 from make_change_test_set import LABELS, ROOT
 
@@ -82,10 +82,12 @@ def coverage_pairs(contexts, manual, merged, negatives):
         reg, matcher, hubs = cache[sid]
         ch, lang = ctx["change"], ctx["lang"]
         a = {e for e, _ in matcher.find(ch["old_text"] + "\n" + ch["new_text"], lang)}
-        for uid, kind in merged.get(ctx["change_id"], []):
-            if kind in ("states", "depends") and uid in ctx["cands"]:
-                b = {e for e, _ in matcher.find(ctx["cands"][uid], lang)}
-                pairs.append({"change": ctx["change_id"], "kind": kind, "lang": lang,
+        for pos in merged.get(ctx["change_id"], []):
+            if pos.kind in ("states", "depends") and pos.block_uid in ctx["cands"]:
+                b = {e for e, _ in matcher.find(ctx["cands"][pos.block_uid], lang)}
+                pairs.append({"change": ctx["change_id"], "kind": pos.kind, "lang": lang,
+                              "group": pos.historical and "historical" or pos.kind,
+                              "origin": pos.origin, "uid": pos.block_uid,
                               "a": a, "b": b, "hubs": hubs, "names":
                               {k: v.name for k, v in reg.entries.items()}})
         for uid in negatives.get(ch["event"], []):
@@ -100,9 +102,10 @@ def main() -> None:
     source = ap.parse_args().labels
     cfg = load_config(ROOT / "config.yaml")
     docs = parse_corpus(ROOT / "data" / "initial_corpus", cfg.layer0, T0)
-    manual = load_manual(ROOT / cfg.layer2.manual_file)
-    # registry and hub sections: the automatic registry (no manual file)
-    reg = build_registry(docs)
+    documents = load_manual(ROOT / cfg.layer2.manual_file, sources=["documents"])
+    test_pairs = load_manual(ROOT / cfg.layer2.manual_file, sources=["test_pairs"])
+    # registry and hub sections: the automatic registry (no test_pairs entries)
+    reg = build_registry(docs, documents)
     matcher = EntityMatcher(reg)
     mentions = [m for d in docs for m in matcher.mentions(d)]
     bodies = body_block_counts(docs)
@@ -154,48 +157,65 @@ def main() -> None:
                "(names in the detail file, not in git).")
 
     # ------------------------------------------------ coverage of review pairs
-    merged: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for prefix in ("m5", "m5s", "m5e"):
-        if sheet(f"{prefix}_candidates", source).exists():
-            for cid, pos in positives_of(prefix, source).items():
-                merged[cid] += pos
+    from m5_labels import by_change, positives
+
+    merged = by_change(positives(source), include_historical=True)
     negatives = negatives_by_event(source)
     contexts = list(change_contexts(cfg))
     out += ["", "## Coverage of review pairs (states / depends)", "",
-            f"**Label source: {source}** ({DESCRIPTION[source]}). A pair is linked when "
-            "the changed block (old + new text) and the review block share an entity "
-            "that is not a hub. The registry and the hub shares are rebuilt from the "
-            "store as it was at each change (initial corpus plus earlier uploads). "
+            f"**Label source: {source}** ({DESCRIPTION[source]}). Labels merged from the "
+            "m5 / m5s / m5e sheets and the additions, each (change, block) pair once "
+            "(eval/m5_labels.py). A pair is linked when the changed block (old + new "
+            "text) and the review block share an entity that is not a hub. The registry "
+            "and the hub shares are rebuilt from the store as it was at each change. "
+            "**Historical** pairs (blocks of an amending act, reason notes; "
+            "kg/historical.py) are left out of states / depends / all and shown apart. "
             "Negatives: (change, block) pairs of the same event labelled "
             "needs_review = no.", "",
-            "**With the manual file:** its entries are the continuation brief's "
-            "examples, which were taken from these same pairs, so that row is not an "
-            "independent measurement.", "",
+            "**automatic** = registry rules plus manual entries with source `documents` "
+            f"({len(documents)} so far). **+ test_pairs** adds the manual entries taken "
+            f"from the measured pairs ({len(test_pairs)}); that row is not an independent "
+            "measurement and is never a headline number.", "",
             "| registry | hubs excluded above | states linked | depends linked "
-            "| all linked | negatives linked |", "|---|---|---|---|---|---|"]
-    variants = {"automatic only": [], "with manual file": manual}
+            "| all linked | historical linked | negatives linked |",
+            "|---|---|---|---|---|---|---|"]
+    variants = {"automatic": documents, "+ test_pairs": documents + test_pairs}
     pairs_by_variant = {}
     for variant, extra in variants.items():
         pairs, negs = coverage_pairs(contexts, extra, merged, negatives)
         pairs_by_variant[variant] = pairs
         for c in CUTOFFS:
-            linked = Counter()
+            linked, n = Counter(), Counter(p["group"] for p in pairs)
             for p in pairs:
-                linked[p["kind"]] += bool((p["a"] & p["b"]) - p["hubs"][c])
-            n = Counter(p["kind"] for p in pairs)
+                linked[p["group"]] += bool((p["a"] & p["b"]) - p["hubs"][c])
+            main_l = linked["states"] + linked["depends"]
             neg = sum(bool((a & b) - h[c]) for a, b, h in negs)
             out.append(f"| {variant} | {c if c is not None else 'none'} "
                        f"| {linked['states']}/{n['states']} "
                        f"| {linked['depends']}/{n['depends']} "
-                       f"| {sum(linked.values())}/{len(pairs)} "
+                       f"| {main_l}/{n['states'] + n['depends']} "
+                       f"| {linked['historical']}/{n['historical']} "
                        f"| {neg}/{len(negs)} ({neg / len(negs):.0%}) |")
-    pairs = pairs_by_variant["automatic only"]
+    # the brief's coverage file (AI), same pairs seen another way
+    cov_path = sheet("m4_entity_type_coverage", source)
+    if cov_path.exists():
+        cov = {(r["block_uid"], c) for r in read(cov_path)
+               for c in [x.strip() for x in r["change_ids"].split(";") if x.strip()]}
+        auto = pairs_by_variant["automatic"]
+        hub = cfg.layer2.hub_block_share
+        hit = [p for p in auto if (p["uid"], p["change"]) in cov]
+        out.append(f"\nCoverage file `{cov_path.name}` ({len(cov)} change-block pairs): "
+                   f"{len(hit)} found among the labelled pairs above; automatic registry "
+                   f"links {sum(bool((p['a'] & p['b']) - p['hubs'][hub]) for p in hit)} of "
+                   f"them at the hub cut-off {hub} "
+                   f"({sum(1 for p in hit if p['group'] == 'historical')} historical).")
+    pairs = pairs_by_variant["automatic"]
     out.append(f"\nPairs by language: {dict(sorted(Counter(p['lang'] for p in pairs).items()))}. "
                "Pairs where the changed block has no entity at all: "
                + ", ".join(f"{v} {sum(1 for p in ps if not p['a'])}"
                            for v, ps in pairs_by_variant.items()) + ".")
     out += ["", "Not checked: precision of single mentions (needs the blind MENTIONS "
-            "sheet); the brief's 19-pair file; values on MENTIONS (step 3)."]
+            "sheet); values on MENTIONS (step 3)."]
     text = "\n".join(out)
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
     (ROOT / "eval" / "results" / f"m4_registry_coverage_{source}.md").write_text(

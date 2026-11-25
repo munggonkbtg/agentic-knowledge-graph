@@ -96,12 +96,24 @@ def test_english_matching_case_plural_and_hyphen():
 
 def test_aliases_and_manual_entries(tmp_path):
     f = tmp_path / "manual.yaml"
-    f.write_text("- {name: Sick Days, type: Concept, language: en, aliases: [sick leave]}\n",
-                 encoding="utf-8")
+    f.write_text("- {name: Sick Days, type: Concept, language: en, aliases: [sick leave], "
+                 "source: documents, added_by: tester, added_on: 2026-11-25}\n"
+                 "- {name: Gym, type: Concept, language: en, source: test_pairs, "
+                 "added_by: tester, added_on: 2026-11-25}\n", encoding="utf-8")
     doc = parse_file(FIX / "en_policy_old.md", CFG.layer0, T0)
     reg = build_registry([doc], load_manual(f))
     e = reg.get("en", "sick leave")
-    assert e is not None and e.name == "Sick Days" and "manual" in e.sources
+    assert e is not None and e.name == "Sick Days" and "manual:documents" in e.sources
+    assert reg.get("en", "Gym").sources == {"manual:test_pairs"}
+    assert [m["name"] for m in load_manual(f, sources=["documents"])] == ["Sick Days"]
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("- {name: X, type: Concept, language: en}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="missing source, added_by, added_on"):
+        load_manual(bad)
+    bad.write_text("- {name: X, type: Concept, language: en, source: label_sheet, "
+                   "added_by: a, added_on: 2026-11-25}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="source must be one of"):
+        load_manual(bad)
     with pytest.raises(ValueError):
         reg.add("x", "Person", "en", "test")
 

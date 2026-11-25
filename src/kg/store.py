@@ -16,6 +16,7 @@ from kg.identify import Candidate, candidate_from
 from kg.layer0_structure import Normalizer, ParsedBlock, ParsedDocument, ParsedSection
 from kg.layer1_references import Extraction, RegistryEntry, slug
 from kg.layer2_entities import EntityEntry, EntityRegistry, Mention
+from kg.values import AttachedValue
 from kg.models import (
     Block,
     BlockKind,
@@ -425,10 +426,19 @@ class Store:
         return {"entities": len(entities), "aliases": len(aliases), "closed": closed}
 
     def write_mentions(self, doc: ParsedDocument, mentions: list[Mention],
-                       rule_version: str, confidence: float, run_at: datetime) -> dict[str, int]:
+                       rule_version: str, confidence: float, run_at: datetime,
+                       unattached: dict[str, list[AttachedValue]] | None = None
+                       ) -> dict[str, int]:
         """MENTIONS edges from one document's blocks, in one transaction. MERGE on
         (block, entity, rule_version), properties on create only; MENTIONS from these
-        blocks made by an older rule version are closed (valid_to = run_at)."""
+        blocks made by an older rule version are closed (valid_to = run_at).
+
+        Values (M4 step 3) attached to a mention are stored on its edge as parallel
+        lists (value, unit, family, base_value, base_unit, value_text, attribute);
+        a mention without values has none of these properties. Values in a block
+        with no non-hub entity go on the Block node as unattached_* lists, set on
+        every run with the rule version that wrote them."""
+        unattached = unattached or {}
         edges = []
         for m in mentions:
             edge = Edge(type=EdgeType.MENTIONS, source_id=m.block_uid, target_id=m.entity_id,
@@ -439,12 +449,19 @@ class Store:
                 "method": edge.provenance.method.value,
                 "evidence_block": edge.provenance.evidence_block,
                 "evidence_span": edge.provenance.evidence_span,
-                "confidence": edge.provenance.confidence, "valid_from": edge.valid_from}})
+                "confidence": edge.provenance.confidence, "valid_from": edge.valid_from,
+                **value_lists(m.values)}})
+        blocks = [{"uid": pb.block.block_uid, "props": {
+                      f"unattached_{k}": v
+                      for k, v in value_lists(unattached.get(pb.block.block_uid, ())).items()}}
+                  for pb in doc.blocks if pb.block.role.value == "body"]
         p = {"edges": edges, "rule_version": rule_version, "run_at": run_at,
-             "uids": [pb.block.block_uid for pb in doc.blocks]}
+             "uids": [pb.block.block_uid for pb in doc.blocks], "blocks": blocks}
         with self._driver.session(database=self._database) as session:
             closed = session.execute_write(_write_mentions_tx, p)
-        return {"written": len(edges), "closed": closed}
+        return {"written": len(edges), "closed": closed,
+                "values": sum(len(m.values) for m in mentions),
+                "unattached": sum(len(v) for v in unattached.values())}
 
     def entity_stats(self) -> list[dict[str, object]]:
         return [dict(r) for r in self._run(
@@ -712,7 +729,35 @@ def _write_entity_registry_tx(tx: ManagedTransaction, p: dict[str, object]) -> i
     return rec["n"] if rec else 0
 
 
+VALUE_FIELDS = ("value", "unit", "family", "base_value", "base_unit", "value_text",
+                "attribute")
+
+
+def value_lists(values) -> dict[str, list]:
+    """Parallel lists for Neo4j (no maps as properties); {} when there are none."""
+    if not values:
+        return {}
+    return {"value": [a.value.value for a in values], "unit": [a.value.unit for a in values],
+            "family": [a.value.family for a in values],
+            "base_value": [a.value.base_value for a in values],
+            "base_unit": [a.value.base_unit for a in values],
+            "value_text": [a.value.value_text for a in values],
+            "attribute": [a.attribute for a in values]}
+
+
 def _write_mentions_tx(tx: ManagedTransaction, p: dict[str, object]) -> int:
+    # unattached values on the blocks: cleared, then set for this rule version
+    tx.run(
+        """
+        UNWIND $blocks AS x
+        MATCH (b:Block {block_uid: x.uid})
+        SET b.unattached_value = null, b.unattached_unit = null, b.unattached_family = null,
+            b.unattached_base_value = null, b.unattached_base_unit = null,
+            b.unattached_value_text = null, b.unattached_attribute = null
+        SET b += x.props, b.values_rule_version = $rule_version
+        """,
+        p,
+    ).consume()
     tx.run(
         """
         UNWIND $edges AS m

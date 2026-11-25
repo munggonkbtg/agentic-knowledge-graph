@@ -59,25 +59,27 @@ English: highest shares 0.081, 0.054, 0.041 (names in the detail file, not in gi
 
 ## Coverage of review pairs (states / depends)
 
-**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check). A pair is linked when the changed block (old + new text) and the review block share an entity that is not a hub. The registry and the hub shares are rebuilt from the store as it was at each change (initial corpus plus earlier uploads). Negatives: (change, block) pairs of the same event labelled needs_review = no.
+**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check). Labels merged from the m5 / m5s / m5e sheets and the additions, each (change, block) pair once (eval/m5_labels.py). A pair is linked when the changed block (old + new text) and the review block share an entity that is not a hub. The registry and the hub shares are rebuilt from the store as it was at each change. **Historical** pairs (blocks of an amending act, reason notes; kg/historical.py) are left out of states / depends / all and shown apart. Negatives: (change, block) pairs of the same event labelled needs_review = no.
 
-**With the manual file:** its entries are the continuation brief's examples, which were taken from these same pairs, so that row is not an independent measurement.
+**automatic** = registry rules plus manual entries with source `documents` (0 so far). **+ test_pairs** adds the manual entries taken from the measured pairs (11); that row is not an independent measurement and is never a headline number.
 
-| registry | hubs excluded above | states linked | depends linked | all linked | negatives linked |
-|---|---|---|---|---|---|
-| automatic only | none | 9/13 | 2/7 | 11/20 | 768/2805 (27%) |
-| automatic only | 0.3 | 9/13 | 2/7 | 11/20 | 271/2805 (10%) |
-| automatic only | 0.2 | 9/13 | 2/7 | 11/20 | 271/2805 (10%) |
-| automatic only | 0.15 | 8/13 | 2/7 | 10/20 | 172/2805 (6%) |
-| automatic only | 0.1 | 8/13 | 2/7 | 10/20 | 159/2805 (6%) |
-| automatic only | 0.05 | 3/13 | 1/7 | 4/20 | 46/2805 (2%) |
-| with manual file | none | 10/13 | 4/7 | 14/20 | 852/2805 (30%) |
-| with manual file | 0.3 | 10/13 | 4/7 | 14/20 | 355/2805 (13%) |
-| with manual file | 0.2 | 10/13 | 3/7 | 13/20 | 289/2805 (10%) |
-| with manual file | 0.15 | 9/13 | 3/7 | 12/20 | 190/2805 (7%) |
-| with manual file | 0.1 | 9/13 | 3/7 | 12/20 | 159/2805 (6%) |
-| with manual file | 0.05 | 8/13 | 2/7 | 10/20 | 47/2805 (2%) |
+| registry | hubs excluded above | states linked | depends linked | all linked | historical linked | negatives linked |
+|---|---|---|---|---|---|---|
+| automatic | none | 3/7 | 3/9 | 6/16 | 6/6 | 768/2805 (27%) |
+| automatic | 0.3 | 3/7 | 3/9 | 6/16 | 6/6 | 271/2805 (10%) |
+| automatic | 0.2 | 3/7 | 3/9 | 6/16 | 6/6 | 271/2805 (10%) |
+| automatic | 0.15 | 3/7 | 3/9 | 6/16 | 5/6 | 172/2805 (6%) |
+| automatic | 0.1 | 3/7 | 3/9 | 6/16 | 5/6 | 159/2805 (6%) |
+| automatic | 0.05 | 2/7 | 1/9 | 3/16 | 1/6 | 46/2805 (2%) |
+| + test_pairs | none | 4/7 | 5/9 | 9/16 | 6/6 | 852/2805 (30%) |
+| + test_pairs | 0.3 | 4/7 | 5/9 | 9/16 | 6/6 | 355/2805 (13%) |
+| + test_pairs | 0.2 | 4/7 | 4/9 | 8/16 | 6/6 | 289/2805 (10%) |
+| + test_pairs | 0.15 | 4/7 | 4/9 | 8/16 | 5/6 | 190/2805 (7%) |
+| + test_pairs | 0.1 | 4/7 | 4/9 | 8/16 | 5/6 | 159/2805 (6%) |
+| + test_pairs | 0.05 | 4/7 | 2/9 | 6/16 | 4/6 | 47/2805 (2%) |
 
-Pairs by language: {'en': 10, 'th': 10}. Pairs where the changed block has no entity at all: automatic only 6, with manual file 1.
+Coverage file `m4_entity_type_coverage_ai.csv` (22 change-block pairs): 22 found among the labelled pairs above; automatic registry links 12 of them at the hub cut-off 0.2 (6 historical).
 
-Not checked: precision of single mentions (needs the blind MENTIONS sheet); the brief's 19-pair file; values on MENTIONS (step 3).
+Pairs by language: {'en': 11, 'th': 11}. Pairs where the changed block has no entity at all: automatic 6, + test_pairs 1.
+
+Not checked: precision of single mentions (needs the blind MENTIONS sheet); values on MENTIONS (step 3).

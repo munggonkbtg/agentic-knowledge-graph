@@ -202,7 +202,8 @@ def _build_layer1(config: Path) -> None:
 
 def _build_layer2(config: Path) -> None:
     """Entity registry from the current version of every document in the graph
-    (plus the hand-kept file), hub flags from block shares, then MENTIONS."""
+    (plus the hand-kept file), hub flags from block shares, then MENTIONS with the
+    values (number + unit) attached to them."""
     cfg = load_config(config)
     s = cfg.layer2
     run_at = datetime.now(timezone.utc)
@@ -222,19 +223,26 @@ def _build_layer2(config: Path) -> None:
                        f"{res['closed']} older ALIAS_OF closed")
             hubs = sorted(e.name for e in reg.entries.values() if e.hub)
             typer.echo(f"  hubs (block share > {s.hub_block_share}): {', '.join(hubs) or 'none'}")
-            total = closed = 0
+            hub_ids = {e.entity_id for e in reg.entries.values() if e.hub}
+            total = closed = n_values = n_loose = 0
             for d in docs:  # one transaction per document
-                r = store.write_mentions(d, mentions[d.document.doc_key], s.rule_version,
-                                         s.mention_confidence, run_at)
+                # values attach to the nearest non-hub entity (M4 step 3)
+                ms, loose = matcher.mentions_with_values(d, hub_ids)
+                r = store.write_mentions(d, ms, s.rule_version, s.mention_confidence, run_at,
+                                         loose)
                 total += r["written"]
                 closed += r["closed"]
+                n_values += r["values"]
+                n_loose += r["unattached"]
                 typer.echo(f"  {d.document.doc_key}: {r['written']} mentions, "
-                           f"{r['closed']} older edges closed")
+                           f"{r['values']} values on them, {r['unattached']} values with no "
+                           f"entity, {r['closed']} older edges closed")
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
     typer.secho(f"Layer 2 ({s.rule_version}) written: {len(reg.entries)} entities, "
-                f"{total} mentions; {closed} edges from older rule versions closed.",
+                f"{total} mentions carrying {n_values} values, {n_loose} values kept on "
+                f"blocks without an entity; {closed} edges from older rule versions closed.",
                 fg="green")
 
 

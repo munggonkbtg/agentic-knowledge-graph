@@ -111,7 +111,8 @@ layer2:
   manual_file: registry/entities_manual.yaml
   # Version of the registry and matching rules, stored on every MENTIONS and
   # ALIAS_OF edge; a rerun with a new version closes older edges (valid_to).
-  rule_version: L2-v1
+  # L2-v1: registry and MENTIONS. L2-v2: values (number + unit) on MENTIONS.
+  rule_version: L2-v2
   # Confidence on MENTIONS from an exact registry match. PROVISIONAL until
   # measured on the blind MENTIONS sheet (data/labels/m4_mentions_sample_human.csv).
   mention_confidence: 0.8

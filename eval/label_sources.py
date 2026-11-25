@@ -5,9 +5,12 @@ live in copies named by their source:
 
 * <stem>_human.csv  a person, blind to the system's output, without AI help
 * <stem>_ai.csv     an AI reviewer (not a person's blind answers)
+* <stem>_person_seen_ai.csv  a person who answered after reading the AI answers
+                    for the same rows (not blind, not independent of the AI)
 
-Only a person's blind answers count for a milestone's "done" check. Scoring
-scripts take --labels human | ai | both and name the source in every result.
+Only a person's blind answers (_human) count for a milestone's "done" check.
+Scoring scripts take --labels human | ai | person_seen_ai | all and name the
+source in every result.
 """
 
 from __future__ import annotations
@@ -19,11 +22,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
-SOURCES = ("human", "ai")
+SOURCES = ("human", "ai", "person_seen_ai")
 
 DESCRIPTION = {
     "human": "a person, blind to the system's output, without AI help",
     "ai": "an AI reviewer, not a person; does not count for a milestone's done check",
+    "person_seen_ai": ("a person who had read the AI reviewer's answers for the same rows; "
+                       "not independent of them, so not a blind human label"),
 }
 
 
@@ -49,7 +54,7 @@ def sources_to_score(choice: str, stem: str, columns: list[str],
     """The sources to report: one named source, or with 'both' every source whose
     sheet exists and has at least one answered row. Exits with a message when the
     named source has no sheet or no answered row (no empty report is written)."""
-    if choice == "both":
+    if choice in ("all", "both"):  # "both" kept from when there were two sources
         return [s for s in SOURCES if sheet(stem, s, labels).exists()
                 and answered(read_rows(sheet(stem, s, labels)), columns)]
     path = sheet(stem, choice, labels)

@@ -10,11 +10,11 @@ only in commit messages. Measurements are from the pilot set unless stated.
 |---|---|
 | M0 Setup | Done |
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
-| M2 Diff | **Built, not verified.** Scored against the blind sheet (30 old blocks, 10 per upload event), but the answers came from an AI reviewer, not a person (see "Label provenance"). Against those AI labels: status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the AI labels say same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional). Known case checked separately (hand-picked, `m2_known`, label source not confirmed, treated as AI): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> labels: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document. **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence. **To verify:** a person fills `m2_blind_sample_human.csv` blind |
+| M2 Diff | **Built, not verified.** Scored against the blind sheet (30 old blocks, 10 per upload event), but the answers came from an AI reviewer, not a person (see "Label provenance"). Against those AI labels: status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the AI labels say same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional). Known case checked separately (hand-picked, `m2_known`, answered by the user after reading the AI reviewer's answers for the same rows: source `person_seen_ai`, not a blind human label): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> labels: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document. **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence. **To verify:** a person fills `m2_blind_sample_human.csv` blind |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
-| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (m5 + m5s + m5e, recounted 2026-11-25): needs_review **46 rows** (states 13, cites 29, depends 4) = **53 change-block pairs** (states 13, cites 33, depends 7), because one block can depend on several change items; no pair is counted twice across the three sheets. No additions file holds rows (`m5_additions.csv` is empty; there is no `m5s_additions.csv`), so hand-added blocks are not in these totals. Weak spot: "depends" has only 4 rows / 7 pairs |
-| M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Values on MENTIONS (step 3) not started |
+| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (recounted 2026-11-25 with `eval/m5_labels.py`: m5 + m5s + m5e and the additions, each (change, block) pair once): needs_review **54 rows** (46 in the pools + 8 additions in `m5s_additions_ai.csv`) = **61 change-block pairs**. **Historical** blocks (decided 2026-11-25, `src/kg/historical.py`: every block of an amending act, i.e. a title with "(ฉบับที่ N)", and reason notes starting "หมายเหตุ :- เหตุผลในการประกาศใช้") are kept with their labels but left out of the main numbers and reported as their own row: 11 rows / 11 pairs (states 6, cites 5). **Main: 43 rows (states 7, cites 30, depends 6) = 50 pairs (states 7, cites 34, depends 9).** The additions file has 8 rows (not 10) and no rows for x-S450 / x-S451; those T5 ข้อ 16 blocks are only in m5e (S13-E01 / E02), so nothing is counted twice. x-S097 appears twice (XS11 cites, XS14 depends): two rows. Historical states rows: 6 of 13 (S08-B09, S08-E02, S08-E05, S10-B01, S11-B11, S14-B11), not 8; the other 7 are current rules in E2, E4, T3, T4, T5 |
+| M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Step 3 (values) measured and written to the graph (L2-v2) |
 | M5-M7 | Not started |
 
 ## Label provenance (corrected 2026-11-25)
@@ -28,7 +28,8 @@ M2 and M3 are **built, not verified**.
 | Sheet | Label source |
 |---|---|
 | `m2_blind_sample` | AI reviewer |
-| `m2_known_sample` | not confirmed; treated as AI until confirmed |
+| `m2_known_sample` | the user, after reading the AI reviewer's answers for the same two rows (`person_seen_ai`): a person, but not independent of the AI and not blind |
+| `m5s_additions`, `m4_entity_type_coverage` | AI reviewer (added to `data/labels/` 2026-11-25 as `_ai`) |
 | `m3_references_sample` (dev), `m3_references_test_sample` | AI reviewer |
 | `m5_candidates`, `m5s_candidates`, `m5e_candidates` | AI reviewer (synthetic edits written by it too) |
 
@@ -227,26 +228,27 @@ so both methods are judged to the same depth; blocks judged before are skipped.
 char3 only 27, both 22). Labelled 2026-11-25: 5 more needs_review blocks (states 4, depends 1; all
 synthetic), 3 from char3 ranks 4-5 and 2 from e5 only; 2 needs_revision yes.
 
-**Result with both methods judged to depth 5** (53 change-block pairs):
-recall@5 char3 0.51, e5 0.34, hybrid 0.36; recall@10 char3 0.58, e5 0.45,
-hybrid 0.57. By kind @10: states char3 0.92 / e5 0.77 / hybrid 0.85; cites
-0.36 / 0.33 / 0.39; depends (7 pairs) 1.00 / 0.43 / 0.86. Thai @10 0.54 /
-0.41 / 0.49. On these labels e5 does not beat the lexical method for finding
-blocks that need review, and fusing it in does not help at @5. e5 is still fine
-for Thai text itself (Task B). The first-pool results are kept in
+**Result with both methods judged to depth 5**, AI labels, recounted
+2026-11-25 with the additions and without historical blocks (50 pairs):
+recall@5 char3 0.36, e5 0.28, hybrid 0.28; recall@10 char3 0.46, e5 0.40,
+hybrid 0.50. By kind @5: states (7) char3 0.71 / e5 0.86; cites (34) 0.21 /
+0.18; depends (9) 0.67 / 0.22. Historical pairs on their own (10 amending act):
+char3 @5 0.80, e5 0.40, i.e. the earlier 0.51 vs 0.34 was lifted by
+historical blocks that repeat the changed words. On these labels e5 is still
+below char3 overall but not on states; e5 is fine for Thai text itself (Task B).
+Earlier figure, for the record: 53 pairs without additions, historical
+included: @5 char3 0.51, e5 0.34. The first-pool results are kept in
 `eval/results/embedding_comparison_first_pool_ai.md`.
 
 **Not a general finding yet** (corrected 2026-11-25). Limits:
-- 29 of the 46 needs_review rows are citations with matching section numbers,
+- 30 of the 43 main needs_review rows are citations, mostly by section number,
   which favours character matching.
 - The candidate pool came from these two methods (plus section-number search,
   layer 1 and random). Blocks that every pooled method missed were never judged
-  and are absent; the brief mentions 10 blocks the reviewer added by hand, but
-  no additions file with rows is in `data/labels/`, so they are not in this
-  result.
-- 46 rows (53 pairs) is a small sample; one pair moves a cell by about 2
-  points overall and by up to 14 points for depends.
-- The labels are an AI reviewer's, and for the synthetic edits (38 of 53
+  except the 8 additions.
+- 43 rows (50 pairs) is a small sample; one pair moves a cell by 2 points
+  overall and by 11-14 points for states or depends.
+- The labels are an AI reviewer's, and for the synthetic edits (35 of 50 main
   pairs) the same reviewer wrote the edits.
 
 **Decided 2026-11-25:** the M5 hybrid search uses intfloat/multilingual-e5-large
@@ -268,8 +270,12 @@ hubs flagged, not removed.
   (an acronym in brackets becomes an alias; a US state in the heading also
   gives a Place);
 - the "ว่าด้วย …" subject of Thai regulation titles;
-- a hand-kept file `registry/entities_manual.yaml`, seeded only with the
-  brief's own examples.
+- a hand-kept file `registry/entities_manual.yaml`. **Rules (decided
+  2026-11-25):** every entry records `source`, `added_by`, `added_on`; new
+  entries may only come from reading the documents (`source: documents`), never
+  from the label sheets or the coverage file. The 11 entries seeded from the
+  brief's examples are `source: test_pairs`: they stay out of every headline
+  number and are reported apart.
 Types by plain rules (Body: คณะกรรมการ / กองทุน / กรม…; Artifact: แบบ /
 ทะเบียน…; Role: titles and definitions that start with ผู้ / บุคคล /
 ข้าราชการ…; else Concept). Matching: Thai on compact text, English case-
@@ -289,13 +295,18 @@ No NER model.
   ("37signals" is not in the registry). A cut-off between 0.2 and 0.45 flags
   just the two; 0.15 adds ค่าจ้าง and สวัสดิการ. **Decided 2026-11-25 (user):
   `layer2.hub_block_share = 0.2`** (hubs: นายจ้าง, ลูกจ้าง).
-- Coverage of the 20 states / depends pairs (13 states, 7 depends; Thai 10,
-  English 10) with hubs above 0.2 excluded:
-  - automatic registry: **11 / 20** (states 9/13, depends 2/7); Thai 9 / 10,
-    English 3 / 10. 10% of judged negative pairs are also linked.
-  - with the manual file: 13 / 20, but its entries were taken from these same
-    pairs, so this is not an independent measurement.
-  - Lower cut-offs cost coverage quickly: at 0.05, 4 / 20.
+- Coverage of the states / depends pairs, AI labels, hubs above 0.2 excluded,
+  **recounted 2026-11-25** with the additions and without historical blocks
+  (16 main pairs: states 7, depends 9):
+  - automatic registry: **6 / 16** (states 3/7, depends 3/9). 10% of judged
+    negative pairs are also linked.
+  - historical pairs on their own: 6 / 6 linked. The first count (11 / 20) was
+    mostly these: T2 repeats the changed section's words.
+  - with the test_pairs entries: 8 / 16; not an independent measurement.
+  - The brief's coverage file (`m4_entity_type_coverage_ai.csv`, 19 rows = 22
+    change-block pairs, all among the labelled pairs): 12 linked, 6 of them
+    historical.
+  - Lower cut-offs cost coverage quickly: at 0.05, 3 / 16.
 - Why English fails: in 6 of the 10 English pairs the changed block contains no
   registry name at all; what links them is a role ("your manager"), a period
   ("first 90 days" / "first week") or a phrase that is not a heading. Adding the
@@ -325,6 +336,52 @@ plus `registry/entities_manual.yaml`.
 - Not handled yet: an entity that drops out of the registry keeps its node
   (no `valid_to` on nodes); mentions in old versions' blocks stay as written.
 
+**Step 3, values** (`src/kg/values.py`, `eval/m4_values.py`, results in
+`eval/results/m4_values_ai.md`; **scored against the AI labels**; normalization
+table agreed 2026-11-25 before the run):
+- A value is a number with a unit right after it: Thai and Arabic digits, Thai
+  number words (สามสิบ = 30), English number words; units in families compared
+  only inside the family (1 year = 12 months, 1 week = 7 days); วันทำงาน /
+  work days are a family of their own; days and months are never converted.
+  Years after พ.ศ. and bare numbers are not values.
+- Each value is attached to the nearest non-hub entity in its block; the
+  attribute is **(entity, unit family)**, a provisional rule-based stand-in for
+  "what the value is about". Values in blocks without an entity are kept with
+  the block (entity none).
+- Initial corpus: Thai 234 values in 109 of 364 body blocks (28 of those blocks
+  have no entity); English 92 values in 40 of 74 blocks (18 with no entity).
+  Spot check of 40 random values in context (20 th, 20 en, by Claude, not a
+  label): all 40 correct.
+- Noise of a plain "same value" signal: the most frequent Thai value, 30
+  calendar days, is in 16 blocks; 15 days in 13. 23 of 55 change items change a
+  value; median 2 candidate blocks contain a changed value (max 20, XS13 and
+  XS15, of about 490). Only 16 of 2,805 judged negative pairs (1%) contain a
+  changed value, against 10% for a shared entity.
+- Review pairs (main 16 states / depends, historical apart):
+  - linked by entity 6, by changed value 6, by either **10 / 16** (Thai 5 / 5,
+    English 5 / 11);
+  - the brief's count, same entity and attribute with the old value while the
+    new text gives a different value: **2 of 7 states pairs** (historical: 7 of
+    11). The coarse attribute and the missing entities in English limit it.
+- Ranking all candidate blocks of a change (expected recall with random
+  tie-breaking, no other signal): states + depends @5 entity alone 0.30,
+  **entity + value 0.46**, value alone 0.26; @20 0.39 / 0.56 / 0.40. Values
+  help most on depends (@5 0.26 -> 0.47). On cites both are weak (layer 1
+  handles those).
+- **In the graph** (`kg build --layer 2`, rule_version **L2-v2**,
+  2026-11-25): values are parallel lists on the MENTIONS edge (`value`, `unit`,
+  `family`, `base_value`, `base_unit`, `value_text`, `attribute`), because one
+  entity can carry several values in a block; values in a block with no
+  non-hub entity are `unattached_*` lists on the Block node, with
+  `values_rule_version`. Hub mentions carry no values. The L2-v1 MENTIONS
+  (1,110) are closed, not deleted; 1,110 L2-v2 MENTIONS carry 252 values and 44
+  blocks keep 74 unattached values (326 = the 234 Thai + 92 English measured
+  above). Rerun closes nothing.
+- The attribute rule is coarse: on T1 มาตรา 118/1 the ค่าชดเชย mention carries
+  both "สามสิบวัน" (about the payment) and "หกสิบปี" (the retirement age).
+- Not checked: whether each value is attached to the right entity (no labels
+  for values).
+
 Not checked: precision of single mentions (the blind sheet
 `data/labels/m4_mentions_sample_human.csv`, 20 Thai + 20 English blocks, is
 built and waits for the labelling guide and a person); the brief's 19-pair
@@ -341,17 +398,15 @@ file (`m4_entity_type_coverage.csv`) is not in `data/labels/`.
 | T1 contains C1 control characters `\x93` / `\x94` (smart quotes decoded with the wrong code page) around defined terms; 11 blocks of the initial corpus have them, and normalization keeps them, so they reach hashes | Layer 0 normalization: map them to quotes (changes hashes, so with a rebuild) |
 | Real changes have almost no cross-document dependents in this pilot: 1 needs_revision block out of 141 candidates for events 1-3. The synthetic edits compensate, but they were written by the AI reviewer that labelled them | Real edits from a person, or a second corpus, before M5 conclusions |
 | Candidate pools miss true dependents: for XS13 the two T5 ข้อ 16 blocks that state "สามสิบวัน" were not in the first pool although they repeat the changed number (found only by the e5 / deeper char3 extension) | M5 recall is an upper bound for what the pool covers; keep an additions step |
-| Historical text: T2 and the reason notes appended to T1 restate old wording; labelled "needs review, no revision" | **User decision:** whether they count as needs_review (labelling guide) |
+| Historical text: T2 and the reason notes appended to T1 restate old wording | **Decided 2026-11-25:** flagged by rule (`src/kg/historical.py`), out of the main numbers, reported as their own row |
 | Section numbers are not unique across laws: T5 cites มาตรา ๓๔ of the Home Workers Act; matching on the number alone links it to the Labour Protection Act | Layer 1 / M5 section search: require the law name when the cited act is not the block's own |
-| Additions: `m5_additions.csv` is empty and there is no `m5s_additions.csv`; the brief mentions hand-added blocks (x-S007 for XS04, x-S097 for XS14) that are not in any sheet here | Put the file in `data/labels/` if it exists elsewhere |
-| `m2_known_sample` label source not confirmed (treated as AI) | User to confirm |
 | Diff results are not stored in the graph (old -> new block for edits) | M5, impact analysis needs them |
 | Edges on the node of an edited block are not moved or closed yet | M5 light / full update |
 | `valid_to IS NULL` cannot use a Neo4j range index | M5, when queries filter on validity |
 | `DEPENDS` evidence needs a quote from each block (one field today) | M7 |
 | Thai full-text analyzer exists (`thai`); quality not checked against PyThaiNLP | M5 hybrid search |
 | Full review sheet (deleted with the data reset) | Rebuild after the blind answers, so it cannot anchor them |
-| LLM (API or local), `MENTIONS` and `DEPENDS` labelling guides (draft for MENTIONS in `eval/make_mentions_sheet.py`) | M4; the user's decisions |
+| LLM (API or local), `DEPENDS` labelling guide | M4/M7; the user's decisions. MENTIONS guide agreed 2026-11-25: `docs/labelling_guide_mentions.md` |
 | English entity coverage is low with headings as the only source (3 / 10 pairs) | M4: decide between more rule sources, the LLM fallback, or relying on values / embeddings for English |
 | Entities that leave the registry keep their node (no validity on nodes) | M4/M5, when the registry changes between runs |
 | No person has labelled any sheet yet | Before any milestone is marked done |

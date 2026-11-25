@@ -4,14 +4,7 @@ The person reads a block and lists every entity it mentions, without seeing
 what layer 2 found. Precision and recall per type and language, and the share
 of mentions that fit no type, are then computed against layer 2.
 
-DRAFT labelling guide (the user decides the final guide before labelling):
-* Types: Concept (a right, benefit, defined term or procedure with rules or
-  values attached), Role (a role given duties or powers), Artifact (a form,
-  system or non-legal document), Body (agency, committee, fund, company),
-  Place (jurisdiction), Other (an entity that fits none of these).
-* Not entities: laws and their sections (those are REFERENCES), people's names,
-  bare dates and amounts.
-* Write the term as it appears in the block (Thai spacing does not matter).
+Labelling guide (agreed 2026-11-25): docs/labelling_guide_mentions.md.
 
 Sampling (fixed seed, recorded in the key file): body blocks of the initial
 corpus, 20 Thai and 20 English, random. English has only 74 body blocks, so

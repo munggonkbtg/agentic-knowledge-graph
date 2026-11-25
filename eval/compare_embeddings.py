@@ -161,25 +161,24 @@ def positives_of(prefix: str, source: str) -> dict[str, list[tuple[str, str]]]:
 def task_a(cfg, e5: E5, source: str) -> dict:
     """(change, positive block) pairs found in the top k, per method / kind / language."""
     hits: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    # Labels from every judged sheet: the first pool (m5, m5s) and the extension
-    # with e5 and deeper char3 (m5e). Change ids are unique across sheets.
-    merged: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for prefix in ("m5", "m5s", "m5e"):
-        if sheet(f"{prefix}_candidates", source).exists():
-            for cid, pos in positives_of(prefix, source).items():
-                merged[cid] += pos
-    positives = {prefix: merged for _, prefix in SETS}
+    # Labels from every sheet (pools m5, m5s, m5e and the additions), each
+    # (change, block) pair once; historical blocks only in their own row.
+    from m5_labels import by_change, positives
+
+    merged = by_change(positives(source), include_historical=True)
     for ctx in change_contexts(cfg):
-        pos = positives[ctx["prefix"]].get(ctx["change_id"])
+        pos = merged.get(ctx["change_id"])
         if not pos:
             continue
         ch = ctx["change"]
         ranks = rankings(ch["old_text"] + "\n" + ch["new_text"], ctx["cands"], e5)
         for method, ranking in ranks.items():
             where = {u: i for i, u in enumerate(ranking, start=1)}
-            for uid, kind in pos:
-                r = where.get(uid, 10**9)
-                for group in (("all",), (ctx["set"],), ("kind", kind), ("lang", ctx["lang"])):
+            for p in pos:
+                r = where.get(p.block_uid, 10**9)
+                groups = ([("historical", p.historical)] if p.historical else
+                          [("all",), (ctx["set"],), ("kind", p.kind), ("lang", ctx["lang"])])
+                for group in groups:
                     c = hits[(method, group)]
                     c["pairs"] += 1
                     for k in KS:
@@ -216,19 +215,24 @@ def task_b(cfg, e5: E5) -> dict:
 LABEL_COLUMNS = ["needs_revision", "needs_review", "kind", "change_ids"]
 
 def caveats(source: str) -> list[str]:
-    rows = [r for p in ("m5", "m5s", "m5e") if sheet(f"{p}_candidates", source).exists()
-            for r in read(sheet(f"{p}_candidates", source))
-            if r["needs_review"].strip().lower() == "yes"]
-    cites = sum(r["kind"].strip().lower() == "cites" for r in rows)
-    pairs = sum(len([x for x in r["change_ids"].split(";") if x.strip()]) for r in rows)
+    from m5_labels import positives
+
+    pos = positives(source)
+    main = [p for p in pos if not p.historical]
+    rows = {p.origin: p for p in main}
+    cites = sum(p.kind == "cites" for p in rows.values())
     out = ["**Not a general finding.** Read this table with these limits:", "",
            f"* Most positives are citations: {cites} of the {len(rows)} needs_review rows "
-           "cite the changed section, mostly by number, which favours character matching.",
+           "(historical blocks excluded) cite the changed section, mostly by number, "
+           "which favours character matching.",
            "* The pool came from these methods (plus section-number search, layer 1 and a "
-           "random sample). A block that every pooled method missed was never judged and "
-           "is absent from the table; only hand additions could add such blocks.",
-           f"* The sample is small ({len(rows)} rows, {pairs} change-block pairs), so one "
-           "or two pairs move a cell by several points."]
+           "random sample). A block that every pooled method missed was never judged; "
+           f"the additions sheets add {sum('additions' in p.origin for p in main)} such "
+           "pairs, which every method may miss.",
+           f"* The sample is small ({len(rows)} rows, {len(main)} change-block pairs), so "
+           "one or two pairs move a cell by several points.",
+           f"* Historical blocks (amending act, reason notes; {len(pos) - len(main)} pairs) "
+           "are left out of every row except their own (`historical ...`)."]
     if source == "ai":
         out.append("* The synthetic edits were written by the same AI reviewer that "
                    "labelled them, so those labels are not blind.")

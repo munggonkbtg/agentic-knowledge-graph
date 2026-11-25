@@ -1,21 +1,25 @@
-# Extra entities and aliases for layer 2 (M4), kept by hand and reviewed by a
-# person. Each item: name, type (Concept | Role | Artifact | Body | Place),
-# language (th | en), optional aliases. Names already found by the automatic
-# registry just gain the aliases.
+# Extra entities and aliases for layer 2 (M4), kept by hand.
 #
-# Seeded 2026-11-25 ONLY with the examples named in the continuation brief.
-# Those examples were taken from the review pairs that the coverage check
-# measures, so results with this file are reported apart from results without
-# it (eval/m4_registry_coverage.py --no-manual).
+# Each item: name, type (Concept | Role | Artifact | Body | Place),
+# language (th | en), optional aliases, and three required fields:
+#   source:   documents   - found by reading the documents (the only source
+#                           allowed for new entries)
+#             test_pairs  - taken from the review pairs that the coverage check
+#                           measures; kept out of every headline number and
+#                           reported apart (eval/m4_registry_coverage.py)
+#   added_by: who added the entry
+#   added_on: date (YYYY-MM-DD)
+# Never add entries from the label sheets or the coverage file.
+# Names already found by the automatic registry just gain the aliases.
 
-- {name: ลาเพื่อกิจธุระอันจำเป็น, type: Concept, language: th}
-- {name: การเปรียบเทียบ, type: Concept, language: th}
-- {name: การตรวจสถานประกอบกิจการ, type: Concept, language: th}
-- {name: แบบ กสร.นก. ๑, type: Artifact, language: th}
-- {name: ทะเบียนลูกจ้าง, type: Artifact, language: th}
-- {name: Short Term Disability, type: Concept, language: en}
-- {name: Sabbatical, type: Concept, language: en}
-- {name: People Ops, type: Role, language: en}
-- {name: manager, type: Role, language: en}
-- {name: Basecamp, type: Artifact, language: en}
-- {name: Airbase, type: Artifact, language: en}
+- {name: ลาเพื่อกิจธุระอันจำเป็น, type: Concept, language: th, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: การเปรียบเทียบ, type: Concept, language: th, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: การตรวจสถานประกอบกิจการ, type: Concept, language: th, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: แบบ กสร.นก. ๑, type: Artifact, language: th, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: ทะเบียนลูกจ้าง, type: Artifact, language: th, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: Short Term Disability, type: Concept, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: Sabbatical, type: Concept, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: People Ops, type: Role, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: manager, type: Role, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: Basecamp, type: Artifact, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
+- {name: Airbase, type: Artifact, language: en, source: test_pairs, added_by: Claude (continuation brief examples), added_on: 2026-11-25}
