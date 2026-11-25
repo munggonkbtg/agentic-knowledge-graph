@@ -12,7 +12,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
 | M2 Diff | Built, not verified. On 2026-11-25 the data set was reset to the initial corpus only: upload files, review / blind sheets (including the v1 labels) and result reports were deleted without backup, and the graph was rebuilt with the 8 initial documents. The blind check is redone once upload files are back (`eval/make_blind_sheet.py`) |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
-| M3 Layer 1 | Started 2026-11-25 at the user's request **before M2 was verified**. Document identification built (`src/kg/identify.py`, used by `kg build` / `kg upload`); `REFERENCES` design waiting for decisions |
+| M3 Layer 1 | **Done 2026-11-25** (started before M2 was verified, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test: precision 0.94, recall 0.94 |
 | M4-M7 | Not started |
 
 ## Decisions so far
@@ -125,7 +125,49 @@ Known limits: a range "มาตรา 118 ถึงมาตรา 122" gives e
 only; stubs are not merged with a real document uploaded later under another
 key; a law named without its year that is not in the store is not detected.
 
-Still to do for M3 "done": a person fills the blind sheet
+**Dev set** (77 blocks, `data/labels/m3_references_*`, labelled blind by the
+person, then **used to tune the rules**, so its later numbers are optimistic):
+
+| rule_version | precision | recall | change |
+|---|---|---|---|
+| L1-v1 | 0.89 | 0.80 | first rules |
+| L1-v3 | 0.96 | 0.93 | list "law A มาตรา X law B มาตรา Y" takes the law before; "วรรค N" kept inside the citation; ข้อ never targets an act; regulations named with a year or (กฎกระทรวง) without one; laws named by subject, only when the law is known; หมวด as a section; deterministic order (L1-v2 was not) |
+
+Old edges are closed, not deleted: each REFERENCES edge has `rule_version`;
+a rerun with a newer version sets `valid_to` and `closed_reason` on the older
+edges (graph now: 528 open L1-v3 edges, 495 L1-v1 and 529 L1-v2 closed).
+Known limit kept: section numbers of an amending act quoted in the
+consolidated text (R036, R065 in the dev set) need the LLM step.
+
+**Test set** (held out): 60 new blocks, seed 20261126, none from the dev set
+(`data/labels/m3_references_test_*`). M3's precision / recall is reported on
+this set only.
+
+**Test set result (L1-v3, labelled blind by the person, rules not changed
+after it):** precision **0.94**, recall **0.94** (124 citations by layer 1,
+124 by the person, 117 shared); document-level precision / recall 0.87.
+Targets met (>= 0.9 / >= 0.8). By resolution: issued_under 25/25,
+self_document 59/60, explicit 33/36, name_without_year 0/3.
+
+Remaining errors on the test set (for a later rule version, which would then
+need a fresh test sample):
+- "กฎกระทรวง…" without a year also catches ordinary phrases
+  ("กฎกระทรวงดังกล่าว…", "กฎกระทรวงแต่ต้องไม่เกิน…"): all 3 name_without_year
+  edges and 1 explicit edge were wrong (R026, R052).
+- "ระเบียบ…" inside an act's name ("พระราชบัญญัติระเบียบบริหารราชการแผ่นดิน")
+  is taken as a regulation, because regulations are matched before acts (R028).
+- Not detected: an order of the Revolutionary Council named by number and
+  date (R003), a regulation named by subject only that is not known (R039),
+  a department manual (R042), an amending-act note naming this act as a whole
+  (R035).
+- Labelling convention: an act named after a list of its sections got an
+  extra document-level edge the person did not count (R010).
+
+Limits of this measurement: one labeller (no agreement figure yet), 50 Thai
+blocks; the test set has no English blocks with links (all 17 were used in the
+dev set, where links scored 1.00, and link rules did not change).
+
+Earlier note: a person fills the blind sheet
 (`eval/make_references_sheet.py` -> `data/labels/m3_references_sample.csv`, 77 blocks),
 then `eval/references_agreement.py` gives precision and recall against it.
 

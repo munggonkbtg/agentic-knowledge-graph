@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from bisect import bisect_left
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -44,11 +45,24 @@ from kg.layer0_structure import THAI_TO_ARABIC, ParsedDocument
 from kg.models import BlockRole
 
 LAW_KEYWORDS = "พระราชบัญญัติ|พระราชกำหนด|พระราชกฤษฎีกา"
+REG_KEYWORDS = "กฎกระทรวง|ระเบียบ|ประกาศ"
 LAW_WITH_YEAR = re.compile(
     rf"(?:{LAW_KEYWORDS})(?!นี้|ฉบับนี้)(?:(?!{LAW_KEYWORDS}|มาตรา).){{1,80}}?พ\.ศ\.\d{{4}}")
+# A regulation named with its year; the name may contain the act it is issued
+# under, and amending regulations end in "(ฉบับที่ N) พ.ศ. YYYY".
+REG_WITH_YEAR = re.compile(
+    rf"(?:{REG_KEYWORDS})(?!นี้|ฉบับนี้)(?:(?!มาตรา\d|ข้อ\d|{REG_KEYWORDS}).){{1,200}}?"
+    rf"พ\.ศ\.\d{{4}}\)?(?:\(ฉบับที่\d+\)พ\.ศ\.\d{{4}}|พ\.ศ\.\d{{4}})*")
+# A ministerial regulation named without a year, e.g. "กฎกระทรวงคุ้มครองแรงงานในงาน
+# เกษตรกรรม". Found in the original text: the name ends at the next space.
+REG_NO_YEAR = re.compile(r"กฎกระทรวง(?!นี้|ฉบับนี้|ฉบับที่|ที่|ว่า)[^\s()\[\],]{6,}")
 CODE = re.compile(r"ประมวลกฎหมาย(?:วิธีพิจารณาความ)?(?:อาญา|แพ่ง(?:และพาณิชย์)?)")
-SELF = re.compile(rf"(?:{LAW_KEYWORDS}|กฎกระทรวง|ระเบียบ|ประกาศ)(?:ฉบับ)?นี้")
-SECTION = re.compile(r"(มาตรา|ข้อ)(\d+(?:/\d+)?)((?:\(\d+\))*)")
+SELF = re.compile(rf"(?:{LAW_KEYWORDS}|{REG_KEYWORDS})(?:ฉบับ)?นี้")
+PARAGRAPH = r"(?:วรรค(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|\d+)(?:\(\d+\))*)?"
+# "มาตรา 159 วรรคสาม": the paragraph (วรรค) is part of the citation but not of
+# cited_section, so the law after it ("… แห่งพระราชบัญญัติ…") is still adjacent.
+SECTION = re.compile(rf"(มาตรา|ข้อ|หมวด)(\d+(?:/\d+)?)((?:\(\d+\))*){PARAGRAPH}")
+ACT_LIKE = re.compile(rf"(?:{LAW_KEYWORDS}|ประมวลกฎหมาย|กฎหมายว่าด้วย)")
 RUN_GAP = re.compile(r"(?:,|และ|หรือ|ถึง|รวมทั้ง)*")
 LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 UPDATE_SUFFIX = re.compile(r"\s*\((?:ฉบับ\s*)?Update[^)]*\).*$")
@@ -104,6 +118,8 @@ class Registry:
 
     def __init__(self, entries: list[RegistryEntry],
                  extra_aliases: dict[str, list[str]] | None = None) -> None:
+        # sorted, so the result never depends on the order the entries came in
+        entries = sorted(entries, key=lambda e: e.doc_key)
         self.entries = {e.doc_key: e for e in entries}
         self.by_name: dict[str, str] = {}
         self.by_base: dict[str, set[str]] = {}
@@ -116,6 +132,10 @@ class Registry:
                 if not c:
                     continue
                 self.by_name.setdefault(c, e.doc_key)
+                # a long title is cited by its first part: "กฎกระทรวง ฉบับที่ 9 (พ.ศ. 2541)"
+                short = REG_WITH_YEAR.match(c) or LAW_WITH_YEAR.match(c)
+                if short and short.group(0) != c:
+                    self.by_name.setdefault(short.group(0), e.doc_key)
                 if re.match(LAW_KEYWORDS, c) and base_name(c) != c:
                     self.by_base.setdefault(base_name(c), set()).add(e.doc_key)
             for f in e.file_names:
@@ -173,7 +193,8 @@ class _Mention:
     end: int
     target: str
     self_ref: bool
-    resolution: str  # how the *name* was resolved: explicit | name_without_year
+    resolution: str  # how the *name* was resolved: explicit | name_without_year | subject_name
+    act_like: bool = False  # an act or code (numbers its parts with มาตรา, never ข้อ)
 
 
 def _span(original: str, idx: list[int], start: int, end: int, limit: int = 240) -> str:
@@ -202,32 +223,102 @@ class ReferenceExtractor:
         def free(s: int, e: int) -> bool:
             return all(e <= a or s >= b for a, b in taken)
 
+        def act_like(key: str, name: str) -> bool:
+            return self.registry.is_act(key) or bool(ACT_LIKE.match(name))
+
+        def add(s: int, e: int, key: str, how: str, name: str) -> None:
+            found.append(_Mention(s, e, key, key == own, how, act_like(key, name)))
+            taken.append((s, e))
+
+        def resolve(name_compact: str, span: tuple[int, int]) -> str:
+            return (self.registry.by_name.get(name_compact)
+                    or self._external(_span(original, idx, *span), out))
+
+        def to_compact(o_start: int, o_end: int) -> tuple[int, int]:
+            s = bisect_left(idx, o_start)
+            e = bisect_left(idx, o_end)
+            return s, e
+
         for m in SELF.finditer(c):
-            found.append(_Mention(m.start(), m.end(), own, True, "explicit"))
+            found.append(_Mention(m.start(), m.end(), own, True, "explicit",
+                                  self.registry.is_act(own)))
             taken.append(m.span())
-        for m in LAW_WITH_YEAR.finditer(c):
-            if not free(*m.span()):
+        for m in REG_WITH_YEAR.finditer(c):
+            name = m.group(0)
+            # "ระเบียบ" / "ประกาศ" are also plain nouns: only a proper title counts
+            if not free(*m.span()) or "วันที่" in name or (
+                    not name.startswith("กฎกระทรวง") and "ว่าด้วย" not in name
+                    and "ฉบับที่" not in name):
                 continue
-            key = self.registry.by_name.get(m.group(0))
-            if key is None:
-                key = self._external(_span(original, idx, m.start(), m.end()), out)
-            found.append(_Mention(m.start(), m.end(), key, key == own, "explicit"))
-            taken.append(m.span())
+            add(m.start(), m.end(), resolve(name, m.span()), "explicit", name)
+        for m in LAW_WITH_YEAR.finditer(c):
+            if free(*m.span()):
+                add(m.start(), m.end(), resolve(m.group(0), m.span()), "explicit", m.group(0))
         for m in CODE.finditer(c):
             if free(*m.span()):
-                key = self.registry.by_name.get(m.group(0)) or self._external(m.group(0), out)
-                found.append(_Mention(m.start(), m.end(), key, key == own, "explicit"))
-                taken.append(m.span())
-        for base in sorted(self.registry.by_base, key=len, reverse=True):
+                add(m.start(), m.end(), resolve(m.group(0), m.span()), "explicit", m.group(0))
+        for m in REG_NO_YEAR.finditer(original):
+            s, e = to_compact(*m.span())
+            if s < e and free(s, e):
+                add(s, e, resolve(c[s:e], (s, e)), "name_without_year", c[s:e])
+        for m in re.finditer("กฎหมายว่าด้วย", c):
+            if not free(*m.span()):
+                continue
+            keys, end = self._subject_targets(c, m.end(), out)
+            for key in keys:
+                found.append(_Mention(m.start(), end, key, key == own, "subject_name", True))
+            if keys:
+                taken.append((m.start(), end))
+        for base in sorted(self.registry.by_base, key=lambda b: (-len(b), b)):
             for m in re.finditer(re.escape(base), c):
                 if not free(*m.span()):
                     continue
                 key = self.registry.principal(base)
                 if key is None:
                     continue
-                found.append(_Mention(m.start(), m.end(), key, key == own, "name_without_year"))
-                taken.append(m.span())
+                add(m.start(), m.end(), key, "name_without_year", base)
         return sorted(found, key=lambda x: x.start)
+
+    def _topics(self, out: Extraction) -> list[tuple[str, str]]:
+        """(topic, doc_key) for every law known so far: the registry, plus laws
+        already named (stubs) earlier in this document. Topic = compact name
+        without its keyword, "(ฉบับที่ N)" and year."""
+        # One document per topic, the registry first; amending acts ("(ฉบับที่ N)")
+        # share the topic of the act they amend and are never a subject target.
+        # Sorted by length, then text, so the result never depends on set order.
+        by_topic: dict[str, str] = {}
+        for base in sorted(self.registry.by_base):
+            key = self.registry.principal(base)
+            topic = re.sub(rf"^(?:{LAW_KEYWORDS})", "", base)
+            if key and topic:
+                by_topic.setdefault(topic, key)
+        for key in sorted(out.stubs):
+            full = compact(out.stubs[key]["title"])[0]
+            name = base_name(full)
+            if re.match(LAW_KEYWORDS, name) and "(ฉบับที่" not in full:
+                topic = re.sub(rf"^(?:{LAW_KEYWORDS})", "", name)
+                if topic:
+                    by_topic.setdefault(topic, key)
+        return sorted(by_topic.items(), key=lambda p: (-len(p[0]), p[0]))
+
+    def _subject_targets(self, c: str, pos: int, out: Extraction) -> tuple[list[str], int]:
+        """After "กฎหมายว่าด้วย" at ``pos``: the known laws whose topic the text
+        continues with ("การคุ้มครองแรงงานและ…" -> the labour protection act, then
+        the next subject after "และ"). A subject that matches no known law gives no
+        edge: a Thai subject phrase has no clear end, so guessing a name would
+        invent wrong documents."""
+        keys, topics = [], self._topics(out)
+        while True:
+            if c.startswith("การ", pos):
+                pos += 3
+            hit = next(((t, k) for t, k in topics if c.startswith(t, pos)), None)
+            if hit is None:
+                return keys, pos
+            keys.append(hit[1])
+            pos += len(hit[0])
+            if not c.startswith("และ", pos):
+                return keys, pos
+            pos += 3
 
     # -- one document -----------------------------------------------------------
 
@@ -284,16 +375,22 @@ class ReferenceExtractor:
         for run in runs:
             start, end = run[0].start(), run[-1].end()
             target, how, span = None, "", (start, end)
-            # A regulation numbers its own parts with ข้อ, so "this regulation"
-            # (กฎกระทรวงนี้ / ระเบียบนี้) is never the target of a มาตรา citation.
+            keyword = run[0].group(1)
+            # Acts number their parts with มาตรา, regulations with ข้อ. So "this
+            # regulation" is never the target of a มาตรา citation, and an act or
+            # code is never the target of a ข้อ citation.
             usable = [m for m in mentions
-                      if not (m.self_ref and run[0].group(1) == "มาตรา" and not own_is_act)]
+                      if not (m.self_ref and keyword == "มาตรา" and not own_is_act)
+                      and not (keyword == "ข้อ" and m.act_like)]
             after = next((m for m in usable if m.start >= end
                           and c[end:m.start] in ("", "แห่ง", "ของ", "ตาม")), None)
             before = next((m for m in reversed(usable) if m.end <= start
                            and c[m.end:start] in ("", ",")), None)
             context = next((m for m in reversed(usable) if m.end <= start), None)
-            if after:
+            # In a list "law A มาตรา X law B มาตรา Y", each section belongs to the law
+            # right before it. The law after it wins only when joined by แห่ง / ของ /
+            # ตาม ("มาตรา 6 แห่งพระราชบัญญัติ…"), or when no law stands right before.
+            if after and (c[end:after.start] != "" or before is None):
                 target, how, span, used_m = after.target, after.resolution, (start, after.end), after
             elif before:
                 target, how, span, used_m = before.target, before.resolution, (before.start, end), before
@@ -301,8 +398,7 @@ class ReferenceExtractor:
                 target, how, used_m = context.target, "same_block_context", context
             else:
                 used_m = None
-                keyword = run[0].group(1)
-                if keyword == "ข้อ" or own_is_act:
+                if keyword in ("ข้อ", "หมวด") or own_is_act:
                     target, how = own, "self_document"
                 elif default_act:
                     target, how = default_act, "issued_under"

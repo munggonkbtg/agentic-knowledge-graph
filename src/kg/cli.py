@@ -160,7 +160,8 @@ def _registry(store: Store, cfg) -> Registry:
 
 def _build_layer1(config: Path) -> None:
     cfg = load_config(config)
-    total = 0
+    total = closed = 0
+    run_at = datetime.now(timezone.utc)
     try:
         with _open_store(config) as store:
             registry = _registry(store, cfg)
@@ -170,16 +171,20 @@ def _build_layer1(config: Path) -> None:
                 if doc is None:
                     continue
                 out = extractor.extract(doc)
-                n = store.write_references(doc, out)  # one transaction per document
-                total += n
+                # one transaction per document
+                res = store.write_references(doc, out, cfg.layer1.rule_version, run_at)
+                total += res["written"]
+                closed += res["closed"]
                 by = Counter(r.resolution for r in out.references)
-                typer.echo(f"  {key}: {n} references {dict(by)}, "
+                typer.echo(f"  {key}: {res['written']} references {dict(by)}, "
                            f"{len(out.stubs)} external documents, "
-                           f"{len(out.unresolved)} unresolved")
+                           f"{len(out.unresolved)} unresolved, "
+                           f"{res['closed']} older edges closed")
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
-    typer.secho(f"Layer 1 written: {total} references.", fg="green")
+    typer.secho(f"Layer 1 ({cfg.layer1.rule_version}) written: {total} references; "
+                f"{closed} edges from older rule versions closed (valid_to set).", fg="green")
 
 
 @app.command()

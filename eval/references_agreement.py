@@ -15,7 +15,8 @@ resolution (explicit, same_block_context, issued_under, ...). Writes counts and
 row ids only (no document text) to eval/results/m3_references_agreement.md.
 Targets from the brief: precision >= 0.9, recall >= 0.8.
 
-Run:  uv run python eval/references_agreement.py
+Run:  uv run python eval/references_agreement.py                         (dev set)
+      uv run python eval/references_agreement.py --name m3_references_test (test set)
 """
 
 from __future__ import annotations
@@ -181,13 +182,26 @@ def registry_from_corpus() -> Registry:
 
 
 def main() -> None:
-    key = json.loads((LABELS / "m3_references_key.json").read_text(encoding="utf-8"))
-    with (LABELS / "m3_references_sample.csv").open(encoding="utf-8-sig", newline="") as f:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--name", default="m3_references",
+                    help="m3_references (dev set, used to tune the rules) or m3_references_test")
+    name = ap.parse_args().name
+    key = json.loads((LABELS / f"{name}_key.json").read_text(encoding="utf-8"))
+    with (LABELS / f"{name}_sample.csv").open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
     registry = registry_from_corpus()
-    text = render(score(rows, key, registry, system_references(registry)))
+    from kg.config import load_config
+
+    rule_version = load_config(ROOT / "config.yaml").layer1.rule_version
+    label = "test set (held out)" if name.endswith("_test") else "dev set (used to tune the rules)"
+    text = (f"<!-- {name}: {label}; layer 1 rule_version {rule_version} -->\n"
+            + render(score(rows, key, registry, system_references(registry)))
+            .replace("# M3: REFERENCES vs the person's blind labels",
+                     f"# M3: REFERENCES vs the person's blind labels — {label}, {rule_version}"))
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
-    (ROOT / "eval" / "results" / "m3_references_agreement.md").write_text(text, encoding="utf-8")
+    (ROOT / "eval" / "results" / f"{name}_agreement.md").write_text(text, encoding="utf-8")
     print(text)
 
 

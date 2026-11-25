@@ -64,6 +64,11 @@ identify:
   queue_file: data/labels/doc_identification_queue.csv
 
 layer1:
+  # Version of the extraction rules, stored on every REFERENCES edge. A rerun with
+  # a new version closes edges of older versions (valid_to) instead of deleting them.
+  # L1-v1: first rules. L1-v2: fixes after the dev labels (docs/plan.md).
+  # L1-v3: L1-v2 made deterministic (subject targets did not depend on set order).
+  rule_version: L1-v3
   # REFERENCES (docs/plan.md, M3). Confidence by how the target was found.
   # All values PROVISIONAL until measured against labels.
   confidence:
@@ -74,6 +79,7 @@ layer1:
     issued_under: 0.7      # bare มาตรา in a regulation -> the act it is issued under
     name_without_year: 0.8 # law named without พ.ศ. and only one known document fits
     title_mention: 0.7     # English: exact title of another handbook page in text
+    subject_name: 0.7      # law named by subject only ("กฎหมายว่าด้วยการคุ้มครองแรงงาน")
   # Extra names for documents, reviewed by a person: {doc_key: [alias, ...]}.
   aliases_file: registry/aliases.yaml
 

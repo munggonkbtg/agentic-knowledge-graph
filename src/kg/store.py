@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from pathlib import PurePosixPath
 from dataclasses import dataclass
 from types import TracebackType
@@ -341,10 +342,15 @@ class Store:
             out.append(RegistryEntry(r["k"], r["t"], r["l"], tuple(sorted(names))))
         return out
 
-    def write_references(self, doc: ParsedDocument, extraction: Extraction) -> int:
+    def write_references(self, doc: ParsedDocument, extraction: Extraction,
+                         rule_version: str, run_at: datetime) -> dict[str, int]:
         """Write external stub documents and REFERENCES edges for one document in a
-        single transaction. MERGE on (block, document, cited_section), properties
-        set ON CREATE only, so a rerun changes nothing."""
+        single transaction.
+
+        MERGE on (block, document, cited_section, rule_version), properties set ON
+        CREATE only, so a rerun with the same rules changes nothing. Edges from
+        this document's blocks made by an *older* rule version are closed
+        (valid_to = run_at), not deleted, so the change stays traceable."""
         edges = []
         for r in extraction.references:
             edge = Edge(  # validates provenance and validity like every other edge
@@ -362,17 +368,20 @@ class Store:
                           "evidence_block": edge.provenance.evidence_block,
                           "evidence_span": edge.provenance.evidence_span,
                           "confidence": edge.provenance.confidence,
-                          "valid_from": edge.valid_from, **edge.properties},
+                          "valid_from": edge.valid_from, "rule_version": rule_version,
+                          **edge.properties},
             })
         stubs = [{**s, "in_store": False} for s in extraction.stubs.values()]
+        payload = {"stubs": stubs, "edges": edges, "rule_version": rule_version,
+                   "run_at": run_at, "uids": [pb.block.block_uid for pb in doc.blocks]}
         with self._driver.session(database=self._database) as session:
-            session.execute_write(_write_references_tx, {"stubs": stubs, "edges": edges})
-        return len(edges)
+            closed = session.execute_write(_write_references_tx, payload)
+        return {"written": len(edges), "closed": closed}
 
     def reference_stats(self) -> list[dict[str, object]]:
         return [dict(r) for r in self._run(
             """
-            MATCH (b:Block)-[r:REFERENCES]->(d:Document)
+            MATCH (b:Block)-[r:REFERENCES]->(d:Document) WHERE r.valid_to IS NULL
             RETURN b.doc_key AS from_doc,
                    CASE WHEN r.self_reference THEN 'self'
                         WHEN coalesce(d.in_store, true) THEN d.doc_key
@@ -577,7 +586,7 @@ def _write_upload_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
         ).consume()
 
 
-def _write_references_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
+def _write_references_tx(tx: ManagedTransaction, p: dict[str, object]) -> int:
     tx.run(
         """
         UNWIND $stubs AS s
@@ -590,8 +599,21 @@ def _write_references_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
         """
         UNWIND $edges AS e
         MATCH (b:Block {block_uid: e.source}), (d:Document {doc_key: e.target})
-        MERGE (b)-[r:REFERENCES {cited_section: e.cited_section}]->(d)
+        MERGE (b)-[r:REFERENCES {cited_section: e.cited_section,
+                                 rule_version: $rule_version}]->(d)
           ON CREATE SET r += e.props
         """,
         p,
     ).consume()
+    # Edges written before rule versions existed count as "L1-v1".
+    rec = tx.run(
+        """
+        MATCH (b:Block)-[r:REFERENCES]->()
+        WHERE b.block_uid IN $uids AND r.valid_to IS NULL
+          AND coalesce(r.rule_version, 'L1-v1') <> $rule_version
+        SET r.valid_to = $run_at, r.closed_reason = 'replaced by rule_version ' + $rule_version
+        RETURN count(r) AS n
+        """,
+        p,
+    ).single()
+    return rec["n"] if rec else 0

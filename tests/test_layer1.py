@@ -1,5 +1,7 @@
 """Layer 1 REFERENCES: one rule per test, on short synthetic blocks (no database)."""
 
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -173,3 +175,88 @@ def test_same_reference_twice_in_a_block_is_one_edge(tmp_path):
 def test_words_that_start_like_keywords_are_not_citations(tmp_path, text):
     out, _ = refs(tmp_path, REG, text)
     assert out.references == []
+
+
+# ------------------------------------------------------------- fixes after the dev labels (L1-v2)
+
+
+def test_paragraph_does_not_hide_the_law_after_the_section(tmp_path):
+    _, r = refs(tmp_path, REG, "ตามมาตรา ๑๕๙ วรรคสาม แห่งพระราชบัญญัติคุ้มครองแรงงาน พ.ศ. ๒๕๔๑ "
+                               "หรือมาตรา ๔๙ วรรคสาม แห่งพระราชบัญญัติอื่น พ.ศ. ๒๕๕๓")
+    assert ("th-act", "มาตรา 159", "explicit") in r
+    (other,) = {t for t, s, _ in r if s == "มาตรา 49"}
+    assert other.startswith("ext-") and other != "th-act"
+
+
+def test_in_a_list_each_section_takes_the_law_right_before_it(tmp_path):
+    _, r = refs(tmp_path, REG, "พระราชบัญญัติคุ้มครองแรงงาน พ.ศ. ๒๕๔๑ มาตรา ๑๕๙ "
+                               "พระราชบัญญัติอื่น พ.ศ. ๒๕๕๓ มาตรา ๔๙")
+    assert ("th-act", "มาตรา 159", "explicit") in r
+    assert {t for t, s, _ in r if s == "มาตรา 49"} != {"th-act"}
+
+
+def test_clause_of_another_regulation_named_without_year(tmp_path):
+    out, r = refs(tmp_path, REG, "ให้เป็นไปตามข้อ ๔ ของกฎกระทรวงคุ้มครองแรงงานในงานเกษตรกรรม")
+    (key,) = [k for k in out.stubs]
+    assert key.startswith("ext-กฎกระทรวงคุ้มครองแรงงานในงานเกษตรกรรม")
+    assert (key, "ข้อ 4", "name_without_year") in r
+
+
+def test_a_clause_never_points_to_an_act(tmp_path):
+    _, r = refs(tmp_path, REG, "พระราชบัญญัติคุ้มครองแรงงาน พ.ศ. ๒๕๔๑ กำหนดไว้ และให้ปฏิบัติตามข้อ ๓")
+    assert ("th-reg", "ข้อ 3", "self_document") in r
+    assert not any(t == "th-act" and s.startswith("ข้อ") for t, s, _ in r)
+
+
+def test_regulation_title_with_year_is_a_document_reference(tmp_path):
+    out, r = refs(tmp_path, ACT, "ระเบียบกระทรวงแรงงานว่าด้วยการตรวจ (ฉบับที่ ๒) พ.ศ. ๒๕๖๐")
+    (key,) = out.stubs
+    assert (key, "", "explicit") in r and key.endswith("พ.ศ.2560")
+
+
+def test_plain_word_regulation_with_a_date_is_not_a_title(tmp_path):
+    out, r = refs(tmp_path, ACT, "ตามระเบียบที่อธิบดีกำหนด เมื่อวันที่ ๑ มกราคม พ.ศ. ๒๕๖๐")
+    assert out.stubs == {} and r == set()
+
+
+def test_short_title_of_a_regulation_in_the_store(tmp_path):
+    _, r = refs(tmp_path, ACT, "ตามกฎกระทรวง ฉบับที่ ๙ (พ.ศ. ๒๕๔๑) ข้อ ๒")
+    assert ("th-reg", "ข้อ 2", "explicit") in r
+
+
+def test_law_named_by_subject(tmp_path):
+    _, r = refs(tmp_path, REG, "ทั้งนี้ ตามกฎหมายว่าด้วยการคุ้มครองแรงงาน")
+    assert ("th-act", "", "subject_name") in r
+
+
+def test_unknown_subject_gives_no_edge(tmp_path):
+    out, r = refs(tmp_path, REG, "ทั้งนี้ ตามกฎหมายว่าด้วยการประมง")
+    assert r == set() and out.stubs == {}
+
+
+def test_chapter_is_a_cited_section(tmp_path):
+    _, r = refs(tmp_path, REG, "ให้ดำเนินการตามหมวด ๒")
+    assert ("th-reg", "หมวด 2", "self_document") in r
+
+
+def test_subject_goes_to_the_registry_act_not_an_amending_act_stub(tmp_path):
+    # The amending act (ฉบับที่ 2) is named first and becomes a stub with the same
+    # subject as the act; "กฎหมายว่าด้วยการคุ้มครองแรงงาน" must still mean the act.
+    _, r = refs(tmp_path, REG, "แก้ไขโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ ๒) พ.ศ. ๒๕๕๑ "
+                               "ทั้งนี้ ตามกฎหมายว่าด้วยการคุ้มครองแรงงาน")
+    assert ("th-act", "", "subject_name") in r
+
+
+def test_extraction_does_not_depend_on_hash_seed():
+    import subprocess
+
+    code = ("import sys; sys.path.insert(0, 'eval');"
+            "from references_agreement import registry_from_corpus, system_references;"
+            "print(sorted((u, d, s, r) for u, i in system_references(registry_from_corpus()).items()"
+            " for d, s, r in i))")
+    if not (ROOT / "data" / "initial_corpus").exists():
+        pytest.skip("data/initial_corpus not present")
+    outs = {subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True,
+                           env={**os.environ, "PYTHONHASHSEED": seed, "PYTHONIOENCODING": "utf-8"},
+                           check=True).stdout for seed in ("1", "2", "3")}
+    assert len(outs) == 1

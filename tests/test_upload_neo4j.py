@@ -224,7 +224,7 @@ def test_layer1_references_are_written_once_with_stubs(store, prefix, tmp_path):
     try:
         for run in range(2):  # the second run must change nothing
             for d in docs:
-                store.write_references(d, extractor.extract(d))
+                store.write_references(d, extractor.extract(d), "test-v1", T2)
             if run == 0:
                 first = edges()
         assert edges() == first
@@ -235,3 +235,27 @@ def test_layer1_references_are_written_once_with_stubs(store, prefix, tmp_path):
     finally:  # the stub is not under the prefix, so delete it here
         store._run("MATCH (d:Document) WHERE d.doc_key IN $k AND d.in_store = false "
                    "DETACH DELETE d", k=stubs)
+
+
+def test_new_rule_version_closes_old_edges_instead_of_deleting(store, prefix, tmp_path):
+    from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor
+
+    key = prefix + "act"
+    doc = parse_file(_file(tmp_path, "act.md", key, "พระราชบัญญัติทดสอบ พ.ศ. 2541",
+                           "## หมวด 1\n\nตามมาตรา ๑๑๘ และมาตรา ๑๑๙\n"), CFG.layer0, T1)
+    store.write_layer0(doc)
+    out = ReferenceExtractor(Registry([RegistryEntry(key, doc.document.title, "th")]),
+                             CFG.layer1).extract(doc)
+    assert store.write_references(doc, out, "test-A", T1) == {"written": 2, "closed": 0}
+    res = store.write_references(doc, out, "test-B", T2)
+    assert res == {"written": 2, "closed": 2}
+    assert store.write_references(doc, out, "test-B", T2)["closed"] == 0  # rerun: no change
+
+    rows = store._run(
+        """
+        MATCH (b:Block)-[r:REFERENCES]->() WHERE b.doc_key = $k
+        RETURN r.rule_version AS v, r.valid_to IS NULL AS open, r.closed_reason AS why
+        ORDER BY v
+        """, k=key).records
+    assert [(r["v"], r["open"]) for r in rows] == [("test-A", False)] * 2 + [("test-B", True)] * 2
+    assert all(r["why"] == "replaced by rule_version test-B" for r in rows if not r["open"])

@@ -27,11 +27,13 @@ Files written to data/labels/ (not in git: they contain document text):
 * m3_references_documents.csv – the documents in the store (doc_key, title).
 * m3_references_key.json – seed, strata and which block each row is.
 
-Run:  uv run python eval/make_references_sheet.py
+Run:  uv run python eval/make_references_sheet.py              (dev set, used to tune rules)
+      uv run python eval/make_references_sheet.py --name m3_references_test --seed 20261126           --exclude data/labels/m3_references_key.json             (held-out test set)
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import random
@@ -44,10 +46,6 @@ from kg.models import BlockRole
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
-SAMPLE = LABELS / "m3_references_sample.csv"
-DOCS = LABELS / "m3_references_documents.csv"
-KEY = LABELS / "m3_references_key.json"
-SEED = 20261125
 T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
 TH_CUES = ("มาตรา", "ข้อ", "พระราชบัญญัติ", "ประมวลกฎหมาย", "กฎกระทรวง", "ระเบียบ")
@@ -63,6 +61,21 @@ SAMPLE_COLUMNS = ["row_id", "file", "lines", "document_title", "section", "block
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--name", default="m3_references",
+                    help="file prefix in data/labels (dev set: m3_references, test set: "
+                         "m3_references_test)")
+    ap.add_argument("--seed", type=int, default=20261125)
+    ap.add_argument("--exclude", type=Path, action="append", default=[],
+                    help="key file of an earlier sheet whose blocks must not be sampled again")
+    args = ap.parse_args()
+    SEED = args.seed
+    SAMPLE = LABELS / f"{args.name}_sample.csv"
+    DOCS = LABELS / f"{args.name}_documents.csv"
+    KEY = LABELS / f"{args.name}_key.json"
+    excluded = set()
+    for k in args.exclude:
+        excluded |= {r["block_uid"] for r in json.loads(k.read_text(encoding="utf-8"))["rows"].values()}
     for p in (SAMPLE, DOCS, KEY):
         if p.exists():
             raise SystemExit(f"{p} exists (it may hold labels); not overwriting")
@@ -75,7 +88,7 @@ def main() -> None:
         lang = d.document.language.value
         cues = TH_CUES if lang == "th" else EN_CUES
         for pb in d.blocks:
-            if pb.block.role != BlockRole.BODY:
+            if pb.block.role != BlockRole.BODY or pb.block.block_uid in excluded:
                 continue
             cue = any(c in pb.block.text for c in cues)
             if lang == "th" and cue:
@@ -96,7 +109,8 @@ def main() -> None:
     rng.shuffle(chosen)
 
     rows, key = [], {"seed": SEED, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                     "rows": {}}
+                     "excluded_key_files": [str(k) for k in args.exclude],
+                     "excluded_blocks": len(excluded), "rows": {}}
     for i, (stratum, (d, pb)) in enumerate(chosen, start=1):
         b = pb.block
         row_id = f"R{i:03d}"

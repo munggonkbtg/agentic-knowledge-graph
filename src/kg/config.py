@@ -61,10 +61,12 @@ class Layer1Confidence(BaseModel):
     issued_under: float = Field(default=0.7, ge=0.0, le=1.0)
     name_without_year: float = Field(default=0.8, ge=0.0, le=1.0)
     title_mention: float = Field(default=0.7, ge=0.0, le=1.0)
+    subject_name: float = Field(default=0.7, ge=0.0, le=1.0)
 
 
 class Layer1Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    rule_version: str = "L1-v3"
     confidence: Layer1Confidence = Layer1Confidence()
     aliases_file: Path = Path("registry/aliases.yaml")
 
