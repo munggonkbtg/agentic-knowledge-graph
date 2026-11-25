@@ -72,6 +72,14 @@ class Layer1Settings(BaseModel):
     aliases_file: Path = Path("registry/aliases.yaml")
 
 
+class EmbeddingSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+    model: str = "intfloat/multilingual-e5-large"
+    query_prefix: str = "query: "
+    passage_prefix: str = "passage: "
+    device: str = "cpu"
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
@@ -81,6 +89,7 @@ class AppConfig(BaseModel):
     diff: DiffSettings = DiffSettings()
     identify: IdentifySettings = IdentifySettings()
     layer1: Layer1Settings = Layer1Settings()
+    embedding: EmbeddingSettings = EmbeddingSettings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

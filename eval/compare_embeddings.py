@@ -43,7 +43,8 @@ from kg.config import load_config
 from kg.diff import MatchStatus, diff_event
 from kg.layer0_structure import Normalizer, parse_corpus
 
-MODEL = "intfloat/multilingual-e5-large"
+EMBEDDING = load_config(ROOT / "config.yaml").embedding  # model chosen in config.yaml
+MODEL = EMBEDDING.model
 CACHE = ROOT / "data" / "cache"
 KS = (5, 10, 20)
 RRF_K = 60
@@ -55,7 +56,7 @@ class E5:
         from sentence_transformers import SentenceTransformer
 
         t = time.time()
-        self.model = SentenceTransformer(MODEL, device="cpu")
+        self.model = SentenceTransformer(MODEL, device=EMBEDDING.device)
         self.load_seconds = time.time() - t
         self.encode_seconds = 0.0
         self.encoded = 0
@@ -64,7 +65,8 @@ class E5:
         self.cache = json.loads(self.path.read_text()) if self.path.exists() else {}
 
     def embed(self, texts: list[str], kind: str) -> np.ndarray:
-        prefixed = [f"{kind}: {t}" for t in texts]
+        prefix = EMBEDDING.query_prefix if kind == "query" else EMBEDDING.passage_prefix
+        prefixed = [f"{prefix}{t}" for t in texts]
         keys = [hashlib.sha256(p.encode()).hexdigest() for p in prefixed]
         todo = [(k, p) for k, p in zip(keys, prefixed) if k not in self.cache]
         if todo:
@@ -158,7 +160,14 @@ def positives_of(prefix: str) -> dict[str, list[tuple[str, str]]]:
 def task_a(cfg, e5: E5) -> dict:
     """(change, positive block) pairs found in the top k, per method / kind / language."""
     hits: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    positives = {prefix: positives_of(prefix) for _, prefix in SETS}
+    # Labels from every judged sheet: the first pool (m5, m5s) and the extension
+    # with e5 and deeper char3 (m5e). Change ids are unique across sheets.
+    merged: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for prefix in ("m5", "m5s", "m5e"):
+        if (LABELS / f"{prefix}_candidates.csv").exists():
+            for cid, pos in positives_of(prefix).items():
+                merged[cid] += pos
+    positives = {prefix: merged for _, prefix in SETS}
     for ctx in change_contexts(cfg):
         pos = positives[ctx["prefix"]].get(ctx["change_id"])
         if not pos:
@@ -212,8 +221,13 @@ def main() -> None:
            f"Model load {e5.load_seconds:.0f} s; encoded {e5.encoded} new texts in "
            f"{e5.encode_seconds:.0f} s on CPU (cached texts not counted).", "",
            "## Task A: impact retrieval on the M5 change test set (needs_review)", "",
-           "Labels were pooled without any embedding method: blocks only e5 finds were "
-           "never judged, so this table favours char3 (a lower bound for e5).", "",
+           ("Labels: first pool (char3 top 3, section-number search, layer 1, random), "
+            "then extended with e5 top 5 and char3 top 5 (m5e), so both methods are "
+            "judged to depth 5. @5 compares them fairly; deeper ranks are unjudged for "
+            "both, and the first pool's cite / graph sources lean lexical."
+            if (LABELS / "m5e_candidates.csv").exists() else
+            "Labels were pooled without any embedding method: blocks only e5 finds were "
+            "never judged, so this table favours char3 (a lower bound for e5)."), "",
            "| group | pairs | " + " | ".join(f"{m} @{k}" for m in ("char3", "e5", "hybrid")
                                             for k in KS) + " |",
            "|---|---|" + "---|" * (3 * len(KS))]

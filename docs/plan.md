@@ -191,7 +191,23 @@ Pool extension built (`eval/make_e5_pool.py`, 2026-11-25): for every change
 item (40 real, 15 synthetic), e5's top 5 and char3 extended from depth 3 to 5,
 so both methods are judged to the same depth; blocks judged before are skipped.
 128 new blocks to judge blind in `data/labels/m5e_candidates.csv` (e5 only 79,
-char3 only 27, both 22). After labelling, rerun the comparison on all labels.
+char3 only 27, both 22). Labelled 2026-11-25: 5 more needs_review blocks (states 4, depends 1; all
+synthetic), 3 from char3 ranks 4-5 and 2 from e5 only; 2 needs_revision yes.
+
+**Result with both methods judged to depth 5** (53 change-block pairs):
+recall@5 char3 0.51, e5 0.34, hybrid 0.36; recall@10 char3 0.58, e5 0.45,
+hybrid 0.57. By kind @10: states char3 0.92 / e5 0.77 / hybrid 0.85; cites
+0.36 / 0.33 / 0.39; depends (7 pairs) 1.00 / 0.43 / 0.86. Thai @10 0.54 /
+0.41 / 0.49. On this corpus e5 does not beat the lexical method for finding
+blocks that need review, and fusing it in does not help at @5 (most positives
+cite section numbers or repeat the exact fact, which lexical matching finds).
+e5 is still fine for Thai text itself (Task B). The first-pool results are kept
+in `eval/results/embedding_comparison_first_pool.md`.
+
+**Decided 2026-11-25:** the M5 hybrid search uses intfloat/multilingual-e5-large
+(`embedding` section in config.yaml), with the result above reported as a
+finding: on this corpus the embedding adds little over lexical matching. Only
+e5-large was tested; other models were not.
 
 ## Open items carried forward
 

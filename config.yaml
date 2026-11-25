@@ -87,6 +87,16 @@ layer1:
   # Extra names for documents, reviewed by a person: {doc_key: [alias, ...]}.
   aliases_file: registry/aliases.yaml
 
+embedding:
+  # Chosen 2026-11-25 for the M5 hybrid search (keyword + embedding).
+  # Compared with character-trigram TF-IDF on our labels (docs/plan.md): handles
+  # Thai as well (same-passage hit@1 0.95), but finds fewer blocks that need
+  # review (recall@5 0.34 vs 0.51). Needs the `embed` dependency group.
+  model: intfloat/multilingual-e5-large
+  query_prefix: "query: "      # e5 expects these prefixes
+  passage_prefix: "passage: "
+  device: cpu
+
 # Later milestones will add sections here, for example:
 #   layer2: entity types, NER threshold                            (M4)
 #   hubs:   hub cut-off                                             (M4/M5)
