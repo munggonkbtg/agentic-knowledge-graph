@@ -98,8 +98,24 @@ embedding:
   passage_prefix: "passage: "
   device: cpu
 
+layer2:
+  # Entities (M4, src/kg/layer2_entities.py). An entity mentioned in more than
+  # this share of the body blocks of its language is a hub (hub = true), kept but
+  # not used to generate candidates. null = no hubs.
+  # Decided by the user 2026-11-25 from eval/results/m4_registry_coverage_ai.md:
+  # 0.2 flags นายจ้าง (0.46) and ลูกจ้าง (0.45) only; 0.15 would add ค่าจ้าง and
+  # สวัสดิการ and lose one states pair. With the manual file, "manager" (0.22) is
+  # also a hub; the user decided to keep it so (same cut-off for every entity).
+  hub_block_share: 0.2
+  # Extra entities and aliases reviewed by a person (name, type, language, aliases).
+  manual_file: registry/entities_manual.yaml
+  # Version of the registry and matching rules, stored on every MENTIONS and
+  # ALIAS_OF edge; a rerun with a new version closes older edges (valid_to).
+  rule_version: L2-v1
+  # Confidence on MENTIONS from an exact registry match. PROVISIONAL until
+  # measured on the blind MENTIONS sheet (data/labels/m4_mentions_sample_human.csv).
+  mention_confidence: 0.8
+
 # Later milestones will add sections here, for example:
-#   layer2: entity types, NER threshold                            (M4)
-#   hubs:   hub cut-off                                             (M4/M5)
 #   llm:    model names, prompt_version                             (M3+)
 #   impact: N (checker budget)                                      (M5)

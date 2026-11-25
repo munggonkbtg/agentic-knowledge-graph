@@ -14,7 +14,8 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
 | M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (m5 + m5s + m5e, recounted 2026-11-25): needs_review **46 rows** (states 13, cites 29, depends 4) = **53 change-block pairs** (states 13, cites 33, depends 7), because one block can depend on several change items; no pair is counted twice across the three sheets. No additions file holds rows (`m5_additions.csv` is empty; there is no `m5s_additions.csv`), so hand-added blocks are not in these totals. Weak spot: "depends" has only 4 rows / 7 pairs |
-| M4-M7 | Not started |
+| M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Values on MENTIONS (step 3) not started |
+| M5-M7 | Not started |
 
 ## Label provenance (corrected 2026-11-25)
 
@@ -253,6 +254,82 @@ for Thai text itself (Task B). The first-pool results are kept in
 with the limits above, not as a finding about embeddings. Only e5-large was
 tested; other models were not.
 
+## M4: entity layer (continuation brief, 2026-11-25)
+
+Design as in the continuation brief: core types Concept (procedures included),
+Role, Artifact; secondary Body, Place (registry only); laws, sections, people,
+bare dates and amounts are not entities; values go on `MENTIONS` (step 3);
+hubs flagged, not removed.
+
+**Step 1, registry without an LLM** (`src/kg/layer2_entities.py`):
+- Thai definitions "X หมายความว่า …" in every Thai document (33 entities;
+  years and repealed terms skipped, "ตามมาตรานี้" dropped from the name);
+- Thai chapter headings split into their list items, English section headings
+  (an acronym in brackets becomes an alias; a US state in the heading also
+  gives a Place);
+- the "ว่าด้วย …" subject of Thai regulation titles;
+- a hand-kept file `registry/entities_manual.yaml`, seeded only with the
+  brief's own examples.
+Types by plain rules (Body: คณะกรรมการ / กองทุน / กรม…; Artifact: แบบ /
+ทะเบียน…; Role: titles and definitions that start with ผู้ / บุคคล /
+ข้าราชการ…; else Concept). Matching: Thai on compact text, English case-
+insensitive with plural "s" and hyphen = space; longest name first, no overlaps.
+No NER model.
+
+**Step 2, measured** (`eval/m4_registry_coverage.py`, results in
+`eval/results/m4_registry_coverage_ai.md`; **scored against the AI labels**):
+
+- Registry on the initial corpus: 95 entities (th: 41 Concept, 11 Role,
+  3 Body; en: 35 Concept, 5 Place); 0 Artifact without the manual file.
+  15 of 35 English concepts never occur in the text (heading names such as
+  "Vacation Time" are not repeated in the paragraphs).
+- Blocks without any entity: Thai 77 of 364, **English 45 of 74**.
+- Hub distribution: นายจ้าง 0.46, ลูกจ้าง 0.45, then ค่าจ้าง 0.18,
+  สวัสดิการ 0.15, พนักงานตรวจแรงงาน 0.11; no English entity above 0.08
+  ("37signals" is not in the registry). A cut-off between 0.2 and 0.45 flags
+  just the two; 0.15 adds ค่าจ้าง and สวัสดิการ. **Decided 2026-11-25 (user):
+  `layer2.hub_block_share = 0.2`** (hubs: นายจ้าง, ลูกจ้าง).
+- Coverage of the 20 states / depends pairs (13 states, 7 depends; Thai 10,
+  English 10) with hubs above 0.2 excluded:
+  - automatic registry: **11 / 20** (states 9/13, depends 2/7); Thai 9 / 10,
+    English 3 / 10. 10% of judged negative pairs are also linked.
+  - with the manual file: 13 / 20, but its entries were taken from these same
+    pairs, so this is not an independent measurement.
+  - Lower cut-offs cost coverage quickly: at 0.05, 4 / 20.
+- Why English fails: in 6 of the 10 English pairs the changed block contains no
+  registry name at all; what links them is a role ("your manager"), a period
+  ("first 90 days" / "first week") or a phrase that is not a heading. Adding the
+  block's own section heading as an implicit mention was tried and linked no
+  new pair (it only linked more negatives: English 11 -> 76 of 1,591), so it
+  was not adopted.
+
+**In the graph** (`kg build --layer 2`, 2026-11-25, rule_version L2-v1): the
+registry is rebuilt from the current version of every document in the graph
+plus `registry/entities_manual.yaml`.
+- `Entity {entity_id, entity_type, canonical_name, language, hub, block_share,
+  sources, rule_version}`: 104.
+- `Alias {alias_id, surface, language}` -[`ALIAS_OF`]-> `Entity`: 106, each alias
+  to exactly one entity; method `regex` (definitions), `parser` (headings,
+  titles) or `human` (manual file only).
+- `Block` -[`MENTIONS` {rule_version, method regex, evidence_span = the name as
+  matched, confidence 0.8 provisional, valid_from}]-> `Entity`: 1,110, one per
+  (block, entity); body blocks only. No values yet (step 3).
+- Rerun changes nothing (checked); a new rule_version closes older MENTIONS and
+  ALIAS_OF (valid_to, closed_reason), as for REFERENCES.
+- Hubs with the cut-off 0.2: นายจ้าง 0.46, ลูกจ้าง 0.45 and **manager 0.22**.
+  "manager" comes from the manual file, so it was not in the distribution the
+  cut-off was chosen from (automatic registry only). With it as a hub, one
+  depends pair is no longer linked (manual-file row: 4/7 at 0.3, 3/7 at 0.2).
+  **Decided 2026-11-25 (user): "manager" stays a hub**; manual entries follow
+  the same cut-off as every other entity.
+- Not handled yet: an entity that drops out of the registry keeps its node
+  (no `valid_to` on nodes); mentions in old versions' blocks stay as written.
+
+Not checked: precision of single mentions (the blind sheet
+`data/labels/m4_mentions_sample_human.csv`, 20 Thai + 20 English blocks, is
+built and waits for the labelling guide and a person); the brief's 19-pair
+file (`m4_entity_type_coverage.csv`) is not in `data/labels/`.
+
 ## Open items carried forward
 
 | Item | Where it belongs |
@@ -274,5 +351,7 @@ tested; other models were not.
 | `DEPENDS` evidence needs a quote from each block (one field today) | M7 |
 | Thai full-text analyzer exists (`thai`); quality not checked against PyThaiNLP | M5 hybrid search |
 | Full review sheet (deleted with the data reset) | Rebuild after the blind answers, so it cannot anchor them |
-| Entity types, LLM, hub cut-off, `MENTIONS` and `DEPENDS` labelling guides | M4 (continuation brief); LLM, hub cut-off and guides are the user's decisions |
+| LLM (API or local), `MENTIONS` and `DEPENDS` labelling guides (draft for MENTIONS in `eval/make_mentions_sheet.py`) | M4; the user's decisions |
+| English entity coverage is low with headings as the only source (3 / 10 pairs) | M4: decide between more rule sources, the LLM fallback, or relying on values / embeddings for English |
+| Entities that leave the registry keep their node (no validity on nodes) | M4/M5, when the registry changes between runs |
 | No person has labelled any sheet yet | Before any milestone is marked done |

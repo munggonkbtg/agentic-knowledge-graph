@@ -60,10 +60,11 @@ uv run kg init-schema
 | `kg init-schema` | Creates uniqueness constraints and indexes (idempotent) |
 | `kg analyzers` | Lists the full-text analyzers Neo4j offers (checks for Thai support) |
 | `kg build --layer 0 [--corpus DIR] [--as-of DATE]` | Parses every `.md` file in DIR (default `data/initial_corpus`) and writes Document → Version → Section → Block with `HAS_VERSION`, `CONTAINS`, `NEXT`. One transaction per file; rerunning changes nothing. |
-| `kg stats` | Sections, blocks and `NEXT` edges per version, plus total counts |
+| `kg stats` | Sections, blocks and `NEXT` edges per version, entities and open MENTIONS per language / type / hub, plus total counts |
 | `kg show-blocks FILE` | Parses one file and prints each block's ID, lines and kind (writes nothing) |
 | `kg upload --event DIR [--as-of DATE]` | Identifies each file (doc_key in front matter, else by text similarity; unsure files go to `data/labels/doc_identification_queue.csv` for a person). Then uploads new versions: diffs each file against its current version in the graph, writes the new version (one transaction per file), reuses the node of every unchanged block, adds `SUPERSEDES`, sets the old version's `valid_to` and updates `Document.title`. Files already uploaded are skipped. |
 | `kg build --layer 1` | REFERENCES for the current version of every document in the graph: regex + document registry, one edge per cited section, stub documents for laws not in the store (rules in `docs/plan.md`). Rerunning changes nothing. |
+| `kg build --layer 2` | Entity layer (M4): builds the entity registry from the current version of every document in the graph (Thai definitions, headings, regulation subjects, and `registry/entities_manual.yaml`), flags hubs (`layer2.hub_block_share`), and writes `Entity`, `Alias` -[`ALIAS_OF`]-> `Entity` and `Block` -[`MENTIONS`]-> `Entity` with provenance. Rerunning changes nothing; a new `layer2.rule_version` closes older edges. |
 | `kg registry` | Lists the names and file names each document can be cited by (add reviewed extra names in `registry/aliases.yaml`) |
 | `kg backup-labels` | Copies `data/labels/` (not in git) to a dated folder outside the repository: `~/kg_label_backups/labels-<date>-<time>`, or `KG_LABEL_BACKUP_DIR`. Every sheet generator in `eval/` does the same before writing. |
 | `kg reset --yes` | Deletes all pipeline nodes (Document, Version, Section, Block, Alias, Entity). Constraints and indexes stay. Cannot be undone. |

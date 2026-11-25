@@ -80,6 +80,16 @@ class EmbeddingSettings(BaseModel):
     device: str = "cpu"
 
 
+class Layer2Settings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Entities mentioned in more than this share of the body blocks of their
+    # language are flagged hub = true and not used for candidates. None = no hubs.
+    hub_block_share: float | None = Field(default=0.2, gt=0.0, le=1.0)
+    manual_file: Path = Path("registry/entities_manual.yaml")
+    rule_version: str = "L2-v1"
+    mention_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
@@ -90,6 +100,7 @@ class AppConfig(BaseModel):
     identify: IdentifySettings = IdentifySettings()
     layer1: Layer1Settings = Layer1Settings()
     embedding: EmbeddingSettings = EmbeddingSettings()
+    layer2: Layer2Settings = Layer2Settings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

@@ -15,6 +15,14 @@ from kg.diff import REVIEW_COLUMNS, VERDICT_HELP, MatchStatus, diff_event, revie
 from kg.layer0_structure import Normalizer, ParseError, parse_corpus, parse_file
 from kg.identify import add_to_queue, candidate_from, identify, read_answers
 from kg.layer1_references import ReferenceExtractor, Registry, load_extra_aliases
+from kg.layer2_entities import (
+    EntityMatcher,
+    block_share,
+    body_block_counts,
+    build_registry,
+    flag_hubs,
+    load_manual,
+)
 from kg.store import Store
 
 app = typer.Typer(help="Knowledge-graph pipeline (research prototype).", no_args_is_help=True)
@@ -96,7 +104,7 @@ def _as_of(value: datetime | None) -> datetime:
 
 @app.command()
 def build(
-    layer: int = typer.Option(..., "--layer", help="Which layer to build (only 0 so far)."),
+    layer: int = typer.Option(..., "--layer", help="Which layer to build (0, 1 or 2)."),
     corpus: Path = typer.Option(Path("data/initial_corpus"), "--corpus", help="Folder of .md files"),
     as_of: datetime | None = typer.Option(
         None, "--as-of", help="valid_from for new nodes and edges (default: now, UTC)."
@@ -109,9 +117,14 @@ def build(
     (docs/plan.md): front-matter keys seed the registry; a file without one is
     compared with the documents already known.
     Layer 1: REFERENCES for the current version of every document in the graph
-    (--corpus is not used)."""
+    (--corpus is not used).
+    Layer 2: entity registry, hub flags and MENTIONS for the current version of
+    every document in the graph (--corpus is not used)."""
     if layer == 1:
         _build_layer1(config)
+        return
+    if layer == 2:
+        _build_layer2(config)
         return
     if layer != 0:
         typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
@@ -187,6 +200,44 @@ def _build_layer1(config: Path) -> None:
                 f"{closed} edges from older rule versions closed (valid_to set).", fg="green")
 
 
+def _build_layer2(config: Path) -> None:
+    """Entity registry from the current version of every document in the graph
+    (plus the hand-kept file), hub flags from block shares, then MENTIONS."""
+    cfg = load_config(config)
+    s = cfg.layer2
+    run_at = datetime.now(timezone.utc)
+    try:
+        with _open_store(config) as store:
+            keys = sorted(e.doc_key for e in store.registry_entries())
+            docs = [d for key in keys if (d := store.load_current_version(key)) is not None]
+            reg = build_registry(docs, load_manual(s.manual_file))
+            matcher = EntityMatcher(reg)
+            mentions = {d.document.doc_key: matcher.mentions(d) for d in docs}
+            share = block_share([m for ms in mentions.values() for m in ms],
+                                body_block_counts(docs), reg)
+            flag_hubs(reg, share, s.hub_block_share)
+            res = store.write_entity_registry(list(reg.entries.values()), share,
+                                              s.rule_version, run_at)
+            typer.echo(f"  registry: {res['entities']} entities, {res['aliases']} aliases, "
+                       f"{res['closed']} older ALIAS_OF closed")
+            hubs = sorted(e.name for e in reg.entries.values() if e.hub)
+            typer.echo(f"  hubs (block share > {s.hub_block_share}): {', '.join(hubs) or 'none'}")
+            total = closed = 0
+            for d in docs:  # one transaction per document
+                r = store.write_mentions(d, mentions[d.document.doc_key], s.rule_version,
+                                         s.mention_confidence, run_at)
+                total += r["written"]
+                closed += r["closed"]
+                typer.echo(f"  {d.document.doc_key}: {r['written']} mentions, "
+                           f"{r['closed']} older edges closed")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"Layer 2 ({s.rule_version}) written: {len(reg.entries)} entities, "
+                f"{total} mentions; {closed} edges from older rule versions closed.",
+                fg="green")
+
+
 @app.command()
 def registry(config: Path = ConfigOption) -> None:
     """Show the document registry: the names and file names each document can be
@@ -234,6 +285,7 @@ def stats(config: Path = ConfigOption) -> None:
         with _open_store(config) as store:
             rows = store.version_stats()
             snap = store.graph_snapshot()
+            ents = store.entity_stats()
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
@@ -241,6 +293,12 @@ def stats(config: Path = ConfigOption) -> None:
     for r in rows:
         typer.echo(f"{r['version_id']:58} {r['language']:4} {r['sections']:>8} "
                    f"{r['blocks']:>6} {r['next_edges']:>5}")
+    if ents:
+        typer.echo(f"\n{'entities':8} {'lang':4} {'type':9} {'hub':5} {'count':>5} "
+                   f"{'open MENTIONS':>13}")
+        for r in ents:
+            typer.echo(f"{'':8} {r['language']:4} {r['type']:9} {str(r['hub']):5} "
+                       f"{r['entities']:>5} {r['mentions']:>13}")
     typer.echo(f"Nodes: {snap['labels']}")
     typer.echo(f"Relationships: {snap['relationships']}")
 

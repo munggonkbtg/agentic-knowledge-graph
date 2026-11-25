@@ -259,3 +259,51 @@ def test_new_rule_version_closes_old_edges_instead_of_deleting(store, prefix, tm
         """, k=key).records
     assert [(r["v"], r["open"]) for r in rows] == [("test-A", False)] * 2 + [("test-B", True)] * 2
     assert all(r["why"] == "replaced by rule_version test-B" for r in rows if not r["open"])
+
+
+def test_layer2_entities_and_mentions_written_once_then_closed_by_new_rules(store, prefix,
+                                                                           tmp_path):
+    from kg.layer2_entities import EntityEntry, Mention
+
+    key = prefix + "policy"
+    doc = parse_file(_file(tmp_path, "p.md", key, "Policy", f"## Leave\n\n{P1}\n\n{P2}\n"),
+                     CFG.layer0, T1)
+    store.write_layer0(doc)
+    uids = [pb.block.block_uid for pb in doc.blocks]
+    leave = EntityEntry(prefix + "concept", "Paid Leave", "Concept", "en",
+                        {prefix + "paid leave", prefix + "leave"}, {"heading:x"})
+    boss = EntityEntry(prefix + "role", "Manager", "Role", "en", {prefix + "manager"},
+                       {"manual"}, hub=True)
+    mentions = [Mention(uids[0], leave.entity_id, "paid leave"),
+                Mention(uids[1], leave.entity_id, "leave"),
+                Mention(uids[1], boss.entity_id, "Managers")]
+    share = {leave.entity_id: 1.0, boss.entity_id: 0.5}
+    try:
+        res = store.write_entity_registry([leave, boss], share, "test-A", T2)
+        assert res == {"entities": 2, "aliases": 3, "closed": 0}
+        assert store.write_mentions(doc, mentions, "test-A", 0.8, T2) == {"written": 3, "closed": 0}
+        # rerun with the same rules: nothing new, nothing closed
+        assert store.write_entity_registry([leave, boss], share, "test-A", T2)["closed"] == 0
+        assert store.write_mentions(doc, mentions, "test-A", 0.8, T2)["closed"] == 0
+        rows = store._run(
+            """
+            MATCH (b:Block)-[m:MENTIONS]->(e:Entity) WHERE b.doc_key = $k
+            OPTIONAL MATCH (a:Alias)-[al:ALIAS_OF]->(e)
+            RETURN e.entity_id AS e, e.hub AS hub, e.block_share AS share, count(DISTINCT m) AS m,
+                   count(DISTINCT a) AS aliases, collect(DISTINCT al.method) AS method,
+                   collect(DISTINCT m.confidence) AS conf
+            ORDER BY e
+            """, k=key).records
+        assert [(r["e"], r["hub"], r["share"], r["m"], r["aliases"], r["method"], r["conf"])
+                for r in rows] == [
+            (leave.entity_id, False, 1.0, 2, 2, ["parser"], [0.8]),
+            (boss.entity_id, True, 0.5, 1, 1, ["human"], [0.8])]
+        # new rule version: old edges are closed, not deleted
+        assert store.write_mentions(doc, mentions, "test-B", 0.8, T2) == {"written": 3, "closed": 3}
+        assert store.write_entity_registry([leave, boss], share, "test-B", T2)["closed"] == 3
+        n = store._run("MATCH (b:Block)-[m:MENTIONS]->() WHERE b.doc_key = $k "
+                       "RETURN count(m) AS all, sum(CASE WHEN m.valid_to IS NULL THEN 1 ELSE 0 END)"
+                       " AS open", k=key).records[0]
+        assert (n["all"], n["open"]) == (6, 3)
+    finally:
+        assert store.delete_entities(prefix) == 2

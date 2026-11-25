@@ -14,7 +14,8 @@ from kg.config import Neo4jCredentials
 from kg.diff import DocumentDiff, MatchStatus
 from kg.identify import Candidate, candidate_from
 from kg.layer0_structure import Normalizer, ParsedBlock, ParsedDocument, ParsedSection
-from kg.layer1_references import Extraction, RegistryEntry
+from kg.layer1_references import Extraction, RegistryEntry, slug
+from kg.layer2_entities import EntityEntry, EntityRegistry, Mention
 from kg.models import (
     Block,
     BlockKind,
@@ -391,6 +392,83 @@ class Store:
             """
         ).records]
 
+    # -- layer 2 (entities) ---------------------------------------------
+
+    def write_entity_registry(self, entries: list[EntityEntry], share: dict[str, float],
+                              rule_version: str, run_at: datetime) -> dict[str, int]:
+        """Entity and Alias nodes and ALIAS_OF edges, in one transaction.
+
+        Entity properties (type, name, hub, block_share, sources) are set on every
+        run, because the hub flag follows the current corpus. ALIAS_OF is merged on
+        (alias, entity, rule_version) with properties set on create only; edges of
+        these aliases from an older rule version are closed (valid_to)."""
+        entities, aliases = [], []
+        for e in entries:
+            entities.append({"entity_id": e.entity_id, "props": {
+                "entity_type": e.entity_type, "canonical_name": e.name,
+                "language": e.language, "hub": e.hub,
+                "block_share": round(share.get(e.entity_id, 0.0), 4),
+                "sources": sorted(e.sources), "rule_version": rule_version}})
+            method = alias_method(e.sources)
+            for a in sorted(e.aliases):
+                edge = Edge(type=EdgeType.ALIAS_OF, source_id=alias_id(e.language, a),
+                            target_id=e.entity_id, valid_from=run_at,
+                            provenance=Provenance(method=method, evidence_span=a))
+                aliases.append({"alias_id": edge.source_id, "entity_id": edge.target_id,
+                                "props": {"surface": a, "language": e.language},
+                                "edge": {"method": method.value, "confidence": 1.0,
+                                         "valid_from": run_at}})
+        p = {"entities": entities, "aliases": aliases, "rule_version": rule_version,
+             "run_at": run_at}
+        with self._driver.session(database=self._database) as session:
+            closed = session.execute_write(_write_entity_registry_tx, p)
+        return {"entities": len(entities), "aliases": len(aliases), "closed": closed}
+
+    def write_mentions(self, doc: ParsedDocument, mentions: list[Mention],
+                       rule_version: str, confidence: float, run_at: datetime) -> dict[str, int]:
+        """MENTIONS edges from one document's blocks, in one transaction. MERGE on
+        (block, entity, rule_version), properties on create only; MENTIONS from these
+        blocks made by an older rule version are closed (valid_to = run_at)."""
+        edges = []
+        for m in mentions:
+            edge = Edge(type=EdgeType.MENTIONS, source_id=m.block_uid, target_id=m.entity_id,
+                        valid_from=doc.version.valid_from,
+                        provenance=Provenance(method=Method.REGEX, evidence_block=m.block_uid,
+                                              evidence_span=m.surface, confidence=confidence))
+            edges.append({"source": edge.source_id, "target": edge.target_id, "props": {
+                "method": edge.provenance.method.value,
+                "evidence_block": edge.provenance.evidence_block,
+                "evidence_span": edge.provenance.evidence_span,
+                "confidence": edge.provenance.confidence, "valid_from": edge.valid_from}})
+        p = {"edges": edges, "rule_version": rule_version, "run_at": run_at,
+             "uids": [pb.block.block_uid for pb in doc.blocks]}
+        with self._driver.session(database=self._database) as session:
+            closed = session.execute_write(_write_mentions_tx, p)
+        return {"written": len(edges), "closed": closed}
+
+    def entity_stats(self) -> list[dict[str, object]]:
+        return [dict(r) for r in self._run(
+            """
+            MATCH (e:Entity)
+            OPTIONAL MATCH (b:Block)-[m:MENTIONS]->(e) WHERE m.valid_to IS NULL
+            WITH e, count(m) AS mentions
+            RETURN e.language AS language, e.entity_type AS type, e.hub AS hub,
+                   count(e) AS entities, sum(mentions) AS mentions
+            ORDER BY language, type, hub
+            """
+        ).records]
+
+    def delete_entities(self, entity_id_prefix: str) -> int:
+        """Delete Entity nodes whose id starts with the prefix, their aliases and
+        edges (used by tests to clean up)."""
+        rec = self._run(
+            """
+            MATCH (e:Entity) WHERE e.entity_id STARTS WITH $p
+            OPTIONAL MATCH (a:Alias)-[:ALIAS_OF]->(e)
+            DETACH DELETE a, e RETURN count(DISTINCT e) AS n
+            """, p=entity_id_prefix)
+        return rec.records[0]["n"]
+
     def reset_pipeline_data(self) -> int:
         """Delete every node the pipeline created (constraints and indexes stay)."""
         labels = " OR ".join(f"n:{label}" for label in PIPELINE_LABELS)
@@ -584,6 +662,76 @@ def _write_upload_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
             """,
             p,
         ).consume()
+
+
+def alias_id(language: str, surface: str) -> str:
+    """One Alias node per name as matched (Thai: compact form; English: lower case)."""
+    return f"{language}:{slug(EntityRegistry.key(language, surface))}"
+
+
+def alias_method(sources: set[str]) -> Method:
+    kinds = {s.split(":")[0] for s in sources}
+    if "definition" in kinds:
+        return Method.REGEX
+    if kinds & {"heading", "title"}:
+        return Method.PARSER
+    return Method.HUMAN  # only the hand-kept file
+
+
+def _write_entity_registry_tx(tx: ManagedTransaction, p: dict[str, object]) -> int:
+    tx.run(
+        """
+        UNWIND $entities AS e
+        MERGE (n:Entity {entity_id: e.entity_id})
+        SET n += e.props, n.updated_at = $run_at
+        """,
+        p,
+    ).consume()
+    tx.run(
+        """
+        UNWIND $aliases AS a
+        MERGE (al:Alias {alias_id: a.alias_id})
+          ON CREATE SET al += a.props
+        WITH al, a
+        MATCH (e:Entity {entity_id: a.entity_id})
+        MERGE (al)-[r:ALIAS_OF {rule_version: $rule_version}]->(e)
+          ON CREATE SET r += a.edge
+        """,
+        p,
+    ).consume()
+    rec = tx.run(
+        """
+        UNWIND $aliases AS a
+        MATCH (:Alias {alias_id: a.alias_id})-[r:ALIAS_OF]->()
+        WHERE r.valid_to IS NULL AND r.rule_version <> $rule_version
+        SET r.valid_to = $run_at, r.closed_reason = 'replaced by rule_version ' + $rule_version
+        RETURN count(r) AS n
+        """,
+        p,
+    ).single()
+    return rec["n"] if rec else 0
+
+
+def _write_mentions_tx(tx: ManagedTransaction, p: dict[str, object]) -> int:
+    tx.run(
+        """
+        UNWIND $edges AS m
+        MATCH (b:Block {block_uid: m.source}), (e:Entity {entity_id: m.target})
+        MERGE (b)-[r:MENTIONS {rule_version: $rule_version}]->(e)
+          ON CREATE SET r += m.props
+        """,
+        p,
+    ).consume()
+    rec = tx.run(
+        """
+        MATCH (b:Block)-[r:MENTIONS]->()
+        WHERE b.block_uid IN $uids AND r.valid_to IS NULL AND r.rule_version <> $rule_version
+        SET r.valid_to = $run_at, r.closed_reason = 'replaced by rule_version ' + $rule_version
+        RETURN count(r) AS n
+        """,
+        p,
+    ).single()
+    return rec["n"] if rec else 0
 
 
 def _write_references_tx(tx: ManagedTransaction, p: dict[str, object]) -> int:
