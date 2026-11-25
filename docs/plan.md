@@ -12,7 +12,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
 | M2 Diff | Built, not verified. On 2026-11-25 the data set was reset to the initial corpus only: upload files, review / blind sheets (including the v1 labels) and result reports were deleted without backup, and the graph was rebuilt with the 8 initial documents. The blind check is redone once upload files are back (`eval/make_blind_sheet.py`) |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
-| M3 Layer 1 | Planned below (identification rules approved 2026-11-25); starts after M2 is verified |
+| M3 Layer 1 | Started 2026-11-25 at the user's request **before M2 was verified**. Document identification built (`src/kg/identify.py`, used by `kg build` / `kg upload`); `REFERENCES` design waiting for decisions |
 | M4-M7 | Not started |
 
 ## Decisions so far
@@ -97,6 +97,37 @@ ambiguous references. Thai patterns to cover: มาตรา N, มาตรา
 ข้อ N, in Thai or Arabic digits; links in the English files (E4 links to E3's
 `#your-first-90-days`, a heading that was renamed). Target from the brief:
 precision >= 0.9, recall >= 0.8 against labels made by reading.
+
+**Rules approved 2026-11-25** (implemented in `src/kg/layer1_references.py`):
+
+1. A section cited inside the same act -> edge to its own document,
+   `self_reference = true`.
+2. Bare "มาตรา N" -> the law named most recently before it in the same block;
+   else, inside an act, the act itself; inside a regulation, the act it is
+   issued under (title / first blocks), lower confidence. A regulation's
+   "this regulation" (กฎกระทรวงนี้) is never the target of a มาตรา citation,
+   because regulations number their own parts with ข้อ.
+3. A law not in the store -> stub `Document` with `in_store = false`, keyed by
+   the compact name (spacing and digit style do not split one law).
+4. One edge per cited section (`cited_section`, e.g. "มาตรา 118 (6)"); a law
+   named without a section -> one document-level edge (`cited_section = ""`).
+
+Other choices: names are matched on compact text (no spaces, Arabic digits);
+a law named without its year goes to the only matching document, or to the
+principal act when amending acts share its name; footnote entries are skipped;
+English uses Markdown links (file name from `source_url`, `#anchor` as the
+cited section; other URLs become stubs) and exact titles of other pages.
+Confidence per resolution is in `config.yaml` (`layer1.confidence`), all
+provisional. Extra names for documents go in `registry/aliases.yaml`
+(reviewed by a person); `kg registry` shows what each document can be cited by.
+
+Known limits: a range "มาตรา 118 ถึงมาตรา 122" gives edges for its two ends
+only; stubs are not merged with a real document uploaded later under another
+key; a law named without its year that is not in the store is not detected.
+
+Still to do for M3 "done": a person fills the blind sheet
+(`eval/make_references_sheet.py` -> `data/labels/m3_references_sample.csv`, 77 blocks),
+then `eval/references_agreement.py` gives precision and recall against it.
 
 ## Open items carried forward
 

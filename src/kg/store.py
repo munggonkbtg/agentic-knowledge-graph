@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import PurePosixPath
 from dataclasses import dataclass
 from types import TracebackType
 
@@ -10,16 +11,20 @@ from neo4j import Driver, GraphDatabase, ManagedTransaction
 
 from kg.config import Neo4jCredentials
 from kg.diff import DocumentDiff, MatchStatus
-from kg.layer0_structure import ParsedBlock, ParsedDocument, ParsedSection
+from kg.identify import Candidate, candidate_from
+from kg.layer0_structure import Normalizer, ParsedBlock, ParsedDocument, ParsedSection
+from kg.layer1_references import Extraction, RegistryEntry
 from kg.models import (
     Block,
     BlockKind,
     BlockRole,
     Document,
+    Edge,
     EdgeType,
     Language,
     LineRange,
     Method,
+    Provenance,
     Section,
     Version,
 )
@@ -135,15 +140,28 @@ class Store:
 
     # -- M1: layer 0 writes ---------------------------------------------
 
-    def write_layer0(self, doc: ParsedDocument) -> None:
+    def write_layer0(self, doc: ParsedDocument,
+                     identification: dict[str, object] | None = None) -> None:
         """Write one parsed document in a single transaction.
 
         Every write is a MERGE ("create only if missing"), and properties that
         record *when* something was created are set ON CREATE only, so running the
-        build again leaves the graph exactly as it was.
+        build again leaves the graph exactly as it was. ``identification`` (from
+        ``Identification.provenance()``) is stored on HAS_VERSION.
         """
         with self._driver.session(database=self._database) as session:
-            session.execute_write(_write_layer0_tx, _layer0_payload(doc))
+            session.execute_write(_write_layer0_tx, _layer0_payload(doc, identification))
+
+    def identification_candidates(self, norm: Normalizer) -> list[Candidate]:
+        """Current version of every document, as identification candidates."""
+        keys = [r["k"] for r in self._run(
+            "MATCH (d:Document) RETURN d.doc_key AS k ORDER BY k").records]
+        out = []
+        for key in keys:
+            doc = self.load_current_version(key)
+            if doc is not None:
+                out.append(candidate_from(doc, norm))
+        return out
 
     def graph_snapshot(self) -> dict[str, object]:
         """Counts and keys used to check that two builds produced the same graph."""
@@ -255,7 +273,8 @@ class Store:
         document = Document(doc_key=doc_key, title=d["title"], language=Language(d["language"]))
         return ParsedDocument(document, version, tuple(sections), tuple(blocks))
 
-    def write_upload(self, diff: DocumentDiff) -> dict[str, int]:
+    def write_upload(self, diff: DocumentDiff,
+                     identification: dict[str, object] | None = None) -> dict[str, int]:
         """Write the new version of one document in a single transaction.
 
         * Blocks the diff marks unchanged keep the node they matched, so edges on
@@ -275,7 +294,7 @@ class Store:
         if len(uids) != len(set(uids)):
             raise RuntimeError(f"{diff.doc_key}: two blocks would share one node")
         doc = ParsedDocument(diff.new.document, diff.new.version, diff.new.sections, new_blocks)
-        payload = _layer0_payload(doc)
+        payload = _layer0_payload(doc, identification)
         payload["old_vid"] = diff.old.version.version_id if diff.old else None
         with self._driver.session(database=self._database) as session:
             session.execute_write(_write_upload_tx, payload)
@@ -301,6 +320,67 @@ class Store:
             p=doc_key_prefix,
         ).records
         return rec[0]["n"] if rec else 0
+
+    # -- layer 1: REFERENCES --------------------------------------------
+
+    def registry_entries(self) -> list[RegistryEntry]:
+        """Documents in the store (not external stubs) and the file names they
+        are known by (from source_url and source_file of every version)."""
+        out = []
+        for r in self._run(
+            """
+            MATCH (d:Document) WHERE coalesce(d.in_store, true)
+            OPTIONAL MATCH (d)-[:HAS_VERSION]->(v:Version)
+            RETURN d.doc_key AS k, d.title AS t, d.language AS l,
+                   collect(DISTINCT v.source_url) AS urls,
+                   collect(DISTINCT v.source_file) AS files
+            ORDER BY k
+            """
+        ).records:
+            names = {PurePosixPath(u).name for u in r["urls"] if u} | set(r["files"])
+            out.append(RegistryEntry(r["k"], r["t"], r["l"], tuple(sorted(names))))
+        return out
+
+    def write_references(self, doc: ParsedDocument, extraction: Extraction) -> int:
+        """Write external stub documents and REFERENCES edges for one document in a
+        single transaction. MERGE on (block, document, cited_section), properties
+        set ON CREATE only, so a rerun changes nothing."""
+        edges = []
+        for r in extraction.references:
+            edge = Edge(  # validates provenance and validity like every other edge
+                type=EdgeType.REFERENCES, source_id=r.block_uid, target_id=r.target,
+                valid_from=doc.version.valid_from,
+                provenance=Provenance(method=Method.REGEX, evidence_block=r.block_uid,
+                                      evidence_span=r.evidence_span, confidence=r.confidence),
+                properties={"cited_section": r.cited_section, "resolution": r.resolution,
+                            "self_reference": r.self_reference},
+            )
+            edges.append({
+                "source": edge.source_id, "target": edge.target_id,
+                "cited_section": r.cited_section,
+                "props": {"method": edge.provenance.method.value,
+                          "evidence_block": edge.provenance.evidence_block,
+                          "evidence_span": edge.provenance.evidence_span,
+                          "confidence": edge.provenance.confidence,
+                          "valid_from": edge.valid_from, **edge.properties},
+            })
+        stubs = [{**s, "in_store": False} for s in extraction.stubs.values()]
+        with self._driver.session(database=self._database) as session:
+            session.execute_write(_write_references_tx, {"stubs": stubs, "edges": edges})
+        return len(edges)
+
+    def reference_stats(self) -> list[dict[str, object]]:
+        return [dict(r) for r in self._run(
+            """
+            MATCH (b:Block)-[r:REFERENCES]->(d:Document)
+            RETURN b.doc_key AS from_doc,
+                   CASE WHEN r.self_reference THEN 'self'
+                        WHEN coalesce(d.in_store, true) THEN d.doc_key
+                        ELSE 'external (not in store)' END AS to_doc,
+                   r.resolution AS resolution, count(*) AS edges
+            ORDER BY from_doc, edges DESC
+            """
+        ).records]
 
     def reset_pipeline_data(self) -> int:
         """Delete every node the pipeline created (constraints and indexes stay)."""
@@ -334,7 +414,8 @@ def _edge_props(method: Method, valid_from) -> dict[str, object]:
     return {"method": method.value, "confidence": 1.0, "valid_from": valid_from}
 
 
-def _layer0_payload(doc: ParsedDocument) -> dict[str, object]:
+def _layer0_payload(doc: ParsedDocument,
+                   identification: dict[str, object] | None = None) -> dict[str, object]:
     v = doc.version
     vid = v.version_id
     sections = [
@@ -399,6 +480,9 @@ def _layer0_payload(doc: ParsedDocument) -> dict[str, object]:
         "next_pairs": [{"a": a, "b": b} for a, b in zip(uids, uids[1:])],
         "meta_edge": _edge_props(Method.METADATA, v.valid_from),
         "parser_edge": _edge_props(Method.PARSER, v.valid_from),
+        # How the document was identified (method, confidence, scores).
+        "has_version_edge": {**_edge_props(Method.METADATA, v.valid_from),
+                             **(identification or {})},
     }
 
 
@@ -410,7 +494,7 @@ def _write_layer0_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
         MERGE (v:Version {version_id: $version.version_id})
           ON CREATE SET v += $version
         MERGE (d)-[r:HAS_VERSION]->(v)
-          ON CREATE SET r += $meta_edge
+          ON CREATE SET r += $has_version_edge
         """,
         p,
     ).consume()
@@ -491,3 +575,23 @@ def _write_upload_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
             """,
             p,
         ).consume()
+
+
+def _write_references_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
+    tx.run(
+        """
+        UNWIND $stubs AS s
+        MERGE (d:Document {doc_key: s.doc_key})
+          ON CREATE SET d += s
+        """,
+        p,
+    ).consume()
+    tx.run(
+        """
+        UNWIND $edges AS e
+        MATCH (b:Block {block_uid: e.source}), (d:Document {doc_key: e.target})
+        MERGE (b)-[r:REFERENCES {cited_section: e.cited_section}]->(d)
+          ON CREATE SET r += e.props
+        """,
+        p,
+    ).consume()

@@ -13,6 +13,8 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 from kg.config import DEFAULT_CONFIG_PATH, MissingEnvError, load_config, load_neo4j_credentials
 from kg.diff import REVIEW_COLUMNS, VERDICT_HELP, MatchStatus, diff_event, review_rows
 from kg.layer0_structure import Normalizer, ParseError, parse_corpus, parse_file
+from kg.identify import add_to_queue, candidate_from, identify, read_answers
+from kg.layer1_references import ReferenceExtractor, Registry, load_extra_aliases
 from kg.store import Store
 
 app = typer.Typer(help="Knowledge-graph pipeline (research prototype).", no_args_is_help=True)
@@ -101,27 +103,123 @@ def build(
     ),
     config: Path = ConfigOption,
 ) -> None:
-    """Build one layer of the graph for every file in a folder."""
+    """Build one layer of the graph.
+
+    Layer 0: every file in --corpus. Each file is first identified
+    (docs/plan.md): front-matter keys seed the registry; a file without one is
+    compared with the documents already known.
+    Layer 1: REFERENCES for the current version of every document in the graph
+    (--corpus is not used)."""
+    if layer == 1:
+        _build_layer1(config)
+        return
     if layer != 0:
         typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
         raise typer.Exit(2)
     cfg = load_config(config)
-    # Parse everything first, so a bad file stops the run before anything is written.
-    try:
-        docs = parse_corpus(corpus, cfg.layer0, _as_of(as_of))
-    except ParseError as e:
-        typer.secho(str(e), fg="red", err=True)
-        raise typer.Exit(1) from None
+    norm = Normalizer(cfg.layer0)
+    files = sorted(corpus.glob("*.md"))
+    if not files:
+        typer.secho(f"No .md files in {corpus}", fg="red", err=True)
+        raise typer.Exit(1)
     try:
         with _open_store(config) as store:
-            for doc in docs:
-                store.write_layer0(doc)  # one transaction per document
-                typer.echo(f"  {doc.version.source_file}: {len(doc.sections)} sections, "
+            candidates = store.identification_candidates(norm)
+            answers = read_answers(cfg.identify.queue_file)
+            # Identify and parse everything first, so a bad file stops the run
+            # before anything is written.
+            decided, waiting = [], []
+            try:
+                for path in files:
+                    ident, doc = identify(path, candidates, cfg, _as_of(as_of), answers,
+                                          trust_front_matter=True)
+                    if doc is None:
+                        waiting.append(ident)
+                        continue
+                    decided.append((ident, doc))
+                    if ident.doc_key not in {c.doc_key for c in candidates}:
+                        candidates.append(candidate_from(doc, norm))
+            except ParseError as e:
+                typer.secho(str(e), fg="red", err=True)
+                raise typer.Exit(1) from None
+            for ident, doc in decided:
+                store.write_layer0(doc, ident.provenance())  # one transaction per document
+                typer.echo(f"  {doc.version.source_file}: {doc.document.doc_key} "
+                           f"({ident.method}), {len(doc.sections)} sections, "
                            f"{len(doc.blocks)} blocks")
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
-    typer.secho(f"Layer 0 written for {len(docs)} files.", fg="green")
+    _report_queue(cfg, waiting + [i for i, _ in decided])
+    typer.secho(f"Layer 0 written for {len(decided)} of {len(files)} files.", fg="green")
+
+
+def _registry(store: Store, cfg) -> Registry:
+    return Registry(store.registry_entries(), load_extra_aliases(cfg.layer1.aliases_file))
+
+
+def _build_layer1(config: Path) -> None:
+    cfg = load_config(config)
+    total = 0
+    try:
+        with _open_store(config) as store:
+            registry = _registry(store, cfg)
+            extractor = ReferenceExtractor(registry, cfg.layer1)
+            for key in sorted(registry.entries):
+                doc = store.load_current_version(key)
+                if doc is None:
+                    continue
+                out = extractor.extract(doc)
+                n = store.write_references(doc, out)  # one transaction per document
+                total += n
+                by = Counter(r.resolution for r in out.references)
+                typer.echo(f"  {key}: {n} references {dict(by)}, "
+                           f"{len(out.stubs)} external documents, "
+                           f"{len(out.unresolved)} unresolved")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"Layer 1 written: {total} references.", fg="green")
+
+
+@app.command()
+def registry(config: Path = ConfigOption) -> None:
+    """Show the document registry: the names and file names each document can be
+    cited by. Add reviewed extra names in registry/aliases.yaml."""
+    cfg = load_config(config)
+    try:
+        with _open_store(config) as store:
+            reg = _registry(store, cfg)
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    names: dict[str, list[str]] = {}
+    for name, key in reg.by_name.items():
+        names.setdefault(key, []).append(name)
+    for key, entry in sorted(reg.entries.items()):
+        typer.echo(f"{key}")
+        for n in names.get(key, []):
+            typer.echo(f"    name: {n}")
+        bases = [b for b, keys in reg.by_base.items() if key in keys]
+        for b in bases:
+            typer.echo(f"    name without year: {b}")
+        for f in entry.file_names:
+            typer.echo(f"    file: {f}")
+
+
+def _report_queue(cfg, idents) -> None:
+    """Add files that need a person to the queue file and say so."""
+    added = add_to_queue(cfg.identify.queue_file, idents)
+    for ident in idents:
+        if ident.needs_person:
+            typer.secho(f"  {ident.file}: not written, a person must decide ({ident.reason})",
+                        fg="yellow")
+        elif ident.confirm_later:
+            typer.secho(f"  {ident.file}: written as {ident.doc_key}, please confirm "
+                        f"({ident.reason})", fg="yellow")
+    if added:
+        typer.echo(f"Added {added} row(s) to {cfg.identify.queue_file}: fill in `answer` "
+                   "with a doc_key or `new`, then rerun.")
 
 
 @app.command()
@@ -219,19 +317,32 @@ def upload(
         raise typer.Exit(2)
     cfg = load_config(config)
     norm = Normalizer(cfg.layer0)
-    try:
-        uploaded = parse_corpus(event, cfg.layer0, _as_of(as_of))
-    except ParseError as e:
-        typer.secho(str(e), fg="red", err=True)
-        raise typer.Exit(1) from None
+    files = sorted(event.glob("*.md"))
+    if not files:
+        typer.secho(f"No .md files in {event}", fg="red", err=True)
+        raise typer.Exit(1)
+    idents = []
     try:
         with _open_store(config) as store:
-            todo = []
-            for doc in uploaded:
-                if store.version_exists(doc.version.version_id):
-                    typer.echo(f"  {doc.version.source_file}: already uploaded, skipped")
-                else:
+            candidates = store.identification_candidates(norm)
+            answers = read_answers(cfg.identify.queue_file)
+            todo, provenance = [], {}
+            try:
+                for path in files:
+                    ident, doc = identify(path, candidates, cfg, _as_of(as_of), answers)
+                    idents.append(ident)
+                    if doc is None:
+                        continue  # waits for a person
+                    if store.version_exists(doc.version.version_id):
+                        typer.echo(f"  {path.name}: already uploaded, skipped")
+                        continue
+                    typer.echo(f"  {path.name}: {doc.document.doc_key} ({ident.method}, "
+                               f"{ident.reason})")
                     todo.append(doc)
+                    provenance[doc.document.doc_key] = ident.provenance()
+            except ParseError as e:
+                typer.secho(str(e), fg="red", err=True)
+                raise typer.Exit(1) from None
             olds = {}
             for doc in todo:
                 old = store.load_current_version(doc.document.doc_key)
@@ -239,7 +350,8 @@ def upload(
                     olds[doc.document.doc_key] = old
             for d in diff_event(olds, todo, cfg.diff, norm):
                 counts = Counter(m.status.value for m in d.matches)
-                written = store.write_upload(d)  # one transaction per document
+                # one transaction per document
+                written = store.write_upload(d, provenance[d.doc_key])
                 label = "new document" if d.old is None else f"supersedes {d.old.version.version_id}"
                 typer.echo(f"  {d.new.version.source_file}: {label}")
                 typer.echo(f"      diff {dict(counts)}")
@@ -248,7 +360,8 @@ def upload(
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
-    typer.secho(f"Uploaded {len(todo)} of {len(uploaded)} files.", fg="green")
+    _report_queue(cfg, idents)
+    typer.secho(f"Uploaded {len(todo)} of {len(files)} files.", fg="green")
 
 
 @app.command()

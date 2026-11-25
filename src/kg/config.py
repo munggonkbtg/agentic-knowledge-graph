@@ -43,6 +43,32 @@ class DiffSettings(BaseModel):
     detect_cross_document_moves: bool = True
 
 
+class IdentifySettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    accept_text_similarity: float = Field(default=0.7, ge=0.0, le=1.0)
+    accept_margin: float = Field(default=0.2, ge=0.0, le=1.0)
+    new_document_below: float = Field(default=0.45, ge=0.0, le=1.0)
+    compare_chars: int = Field(default=20000, ge=100)
+    queue_file: Path = Path("data/labels/doc_identification_queue.csv")
+
+
+class Layer1Confidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    explicit: float = Field(default=1.0, ge=0.0, le=1.0)
+    link: float = Field(default=1.0, ge=0.0, le=1.0)
+    self_document: float = Field(default=0.9, ge=0.0, le=1.0)
+    same_block_context: float = Field(default=0.85, ge=0.0, le=1.0)
+    issued_under: float = Field(default=0.7, ge=0.0, le=1.0)
+    name_without_year: float = Field(default=0.8, ge=0.0, le=1.0)
+    title_mention: float = Field(default=0.7, ge=0.0, le=1.0)
+
+
+class Layer1Settings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confidence: Layer1Confidence = Layer1Confidence()
+    aliases_file: Path = Path("registry/aliases.yaml")
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
@@ -50,6 +76,8 @@ class AppConfig(BaseModel):
     neo4j: Neo4jSettings = Neo4jSettings()
     layer0: Layer0Settings = Layer0Settings()
     diff: DiffSettings = DiffSettings()
+    identify: IdentifySettings = IdentifySettings()
+    layer1: Layer1Settings = Layer1Settings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

@@ -53,6 +53,30 @@ diff:
   # by identical text only: their text is a template ("มาตรา X แก้ไขเพิ่มเติมโดย
   # ... (ฉบับที่ Y)"), so similarity would pair unrelated entries.
 
+identify:
+  # Document identification for files without a doc_key (docs/plan.md, M3).
+  # All values PROVISIONAL. On the pilot, the right document scored 0.75-0.96
+  # text similarity and every other document <= 0.39.
+  accept_text_similarity: 0.7   # best candidate at or above this ...
+  accept_margin: 0.2            # ... and this far above the second -> accept
+  new_document_below: 0.45      # best below this -> new document (to confirm)
+  compare_chars: 20000          # characters of normalized text compared
+  queue_file: data/labels/doc_identification_queue.csv
+
+layer1:
+  # REFERENCES (docs/plan.md, M3). Confidence by how the target was found.
+  # All values PROVISIONAL until measured against labels.
+  confidence:
+    explicit: 1.0          # law name right before/after the section ("มาตรา 6 แห่งพระราชบัญญัติ…")
+    link: 1.0              # Markdown link to a known file
+    self_document: 0.9     # bare มาตรา/ข้อ inside an act cites the act itself
+    same_block_context: 0.85  # bare มาตรา after a law named earlier in the same block
+    issued_under: 0.7      # bare มาตรา in a regulation -> the act it is issued under
+    name_without_year: 0.8 # law named without พ.ศ. and only one known document fits
+    title_mention: 0.7     # English: exact title of another handbook page in text
+  # Extra names for documents, reviewed by a person: {doc_key: [alias, ...]}.
+  aliases_file: registry/aliases.yaml
+
 # Later milestones will add sections here, for example:
 #   layer2: entity types, NER threshold                            (M4)
 #   hubs:   hub cut-off                                             (M4/M5)

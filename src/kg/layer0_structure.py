@@ -53,7 +53,6 @@ _BLOCK_TOKENS: dict[str, BlockKind] = {
     "html_block": BlockKind.HTML,
 }
 
-REQUIRED_FRONT_MATTER = ("doc_key", "title", "language")
 
 
 class ParseError(ValueError):
@@ -137,18 +136,49 @@ class _OpenSection:
     parent_id: str | None
 
 
-def parse_file(path: Path, cfg: Layer0Settings, valid_from: datetime) -> ParsedDocument:
+def read_front_matter(path: Path) -> dict:
+    """Front matter only (empty dict if the file has none)."""
+    meta, _ = split_front_matter(path.read_bytes().decode("utf-8-sig").splitlines())
+    return meta
+
+
+_THAI = re.compile(r"[฀-๿]")
+_LATIN = re.compile(r"[A-Za-z]")
+
+
+def detect_language(text: str) -> Language:
+    """Thai if Thai letters are at least 30% of the Thai + Latin letters."""
+    th, en = len(_THAI.findall(text)), len(_LATIN.findall(text))
+    return Language.TH if th and th / (th + en) >= 0.3 else Language.EN
+
+
+def _first_h1(lines: list[str]) -> str | None:
+    return next((line[2:].strip() for line in lines if line.startswith("# ")), None)
+
+
+def parse_file(
+    path: Path, cfg: Layer0Settings, valid_from: datetime, doc_key: str | None = None
+) -> ParsedDocument:
+    """Parse one Markdown file.
+
+    ``doc_key`` comes from the front matter unless given here (document
+    identification decides it for files without one). ``title`` falls back to the
+    first ``#`` heading, then the file name; ``language`` falls back to detection.
+    """
     raw = path.read_bytes()
     text = raw.decode("utf-8-sig")
     lines = text.splitlines()
     meta, body_start = split_front_matter(lines)
-    missing = [k for k in REQUIRED_FRONT_MATTER if not meta.get(k)]
-    if missing:
-        raise ParseError(f"{path.name}: front matter is missing {', '.join(missing)}")
+    doc_key = doc_key or (str(meta["doc_key"]) if meta.get("doc_key") else None)
+    if not doc_key:
+        raise ParseError(f"{path.name}: front matter is missing doc_key "
+                         "(run document identification first)")
 
     norm = Normalizer(cfg)
-    doc_key = str(meta["doc_key"])
-    document = Document(doc_key=doc_key, title=str(meta["title"]), language=Language(meta["language"]))
+    title = str(meta.get("title") or _first_h1(lines[body_start:]) or path.stem)
+    language = (Language(meta["language"]) if meta.get("language")
+                else detect_language("\n".join(lines[body_start:])))
+    document = Document(doc_key=doc_key, title=title, language=language)
     version = Version(
         doc_key=doc_key,
         file_hash=hashlib.sha256(raw).hexdigest(),

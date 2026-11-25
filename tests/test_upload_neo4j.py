@@ -171,3 +171,67 @@ def test_writing_the_same_upload_twice_changes_nothing(store, prefix, tmp_path):
     before = snap()
     store.write_upload(d)  # same diff written again
     assert snap() == before
+
+
+def test_identification_by_content_is_recorded_on_has_version(store, prefix, tmp_path):
+    """A file without doc_key is matched to its document by text, and the decision
+    (method and scores) is stored on HAS_VERSION."""
+    from kg.identify import identify
+
+    key = prefix + "doc"
+    store.write_layer0(parse_file(_file(tmp_path, "v1.md", key, "Leave", f"## Rules\n\n{P1}\n\n{P2}\n\n{P3}\n"),
+                                  CFG.layer0, T1))
+    f2 = tmp_path / "leave_policy_update.md"  # no front matter at all
+    f2.write_text(f"# Leave\n\n## Rules\n\n{NEW}\n\n{P1}\n\n{P2}\n\n{P3}\n", encoding="utf-8")
+    cands = [c for c in store.identification_candidates(NORM) if c.doc_key.startswith(prefix)]
+    ident, doc = identify(f2, cands, CFG, T2)
+    assert (ident.method, ident.doc_key) == ("content", key)
+    old = store.load_current_version(key)
+    (d,) = diff_event({key: old}, [doc], CFG.diff, NORM)
+    store.write_upload(d, ident.provenance())
+    rec = store._run(
+        """
+        MATCH (:Document {doc_key: $k})-[r:HAS_VERSION]->(v:Version {version_id: $vid})
+        RETURN r.method AS method, r.id_text_similarity AS sim
+        """, k=key, vid=doc.version.version_id).records[0]
+    assert rec["method"] == "content" and rec["sim"] >= CFG.identify.accept_text_similarity
+
+
+def test_layer1_references_are_written_once_with_stubs(store, prefix, tmp_path):
+    from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor
+
+    act_key, reg_key = prefix + "act", prefix + "reg"
+    act = _file(tmp_path, "act.md", act_key, "พระราชบัญญัติทดสอบ พ.ศ. 2541",
+                "## หมวด 1\n\nนายจ้างต้องปฏิบัติตามมาตรา ๑๑๘\n")
+    reg = _file(tmp_path, "reg.md", reg_key, "ระเบียบทดสอบ ออกตามความในพระราชบัญญัติทดสอบ พ.ศ. 2541",
+                "## ข้อ 1\n\nตามมาตรา ๖ แห่งพระราชบัญญัติทดสอบ พ.ศ. ๒๕๔๑ และมาตรา ๗๑ แห่ง"
+                "พระราชบัญญัติอื่นที่ไม่มีในคลัง พ.ศ. ๒๕๕๔\n")
+    docs = [parse_file(f, CFG.layer0, T1) for f in (act, reg)]
+    for d in docs:
+        store.write_layer0(d)
+    registry = Registry([RegistryEntry(d.document.doc_key, d.document.title, "th") for d in docs])
+    extractor = ReferenceExtractor(registry, CFG.layer1)
+
+    def edges():
+        return sorted(tuple(r.values()) for r in store._run(
+            """
+            MATCH (b:Block)-[r:REFERENCES]->(d:Document) WHERE b.doc_key STARTS WITH $p
+            RETURN b.doc_key AS f, d.doc_key AS t, r.cited_section AS c, r.resolution AS res,
+                   r.self_reference AS self, coalesce(d.in_store, true) AS in_store
+            """, p=prefix).records)
+
+    stubs = sorted({k for d in docs for k in extractor.extract(d).stubs})
+    try:
+        for run in range(2):  # the second run must change nothing
+            for d in docs:
+                store.write_references(d, extractor.extract(d))
+            if run == 0:
+                first = edges()
+        assert edges() == first
+        assert (act_key, act_key, "มาตรา 118", "self_document", True, True) in first
+        assert (reg_key, act_key, "มาตรา 6", "explicit", False, True) in first
+        ext = [e for e in first if e[5] is False]
+        assert len(ext) == 1 and ext[0][2] == "มาตรา 71"
+    finally:  # the stub is not under the prefix, so delete it here
+        store._run("MATCH (d:Document) WHERE d.doc_key IN $k AND d.in_store = false "
+                   "DETACH DELETE d", k=stubs)

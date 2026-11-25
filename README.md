@@ -62,7 +62,9 @@ uv run kg init-schema
 | `kg build --layer 0 [--corpus DIR] [--as-of DATE]` | Parses every `.md` file in DIR (default `data/initial_corpus`) and writes Document → Version → Section → Block with `HAS_VERSION`, `CONTAINS`, `NEXT`. One transaction per file; rerunning changes nothing. |
 | `kg stats` | Sections, blocks and `NEXT` edges per version, plus total counts |
 | `kg show-blocks FILE` | Parses one file and prints each block's ID, lines and kind (writes nothing) |
-| `kg upload --event DIR [--as-of DATE]` | Uploads new versions: diffs each file against its current version in the graph, writes the new version (one transaction per file), reuses the node of every unchanged block, adds `SUPERSEDES`, sets the old version's `valid_to` and updates `Document.title`. Files already uploaded are skipped. |
+| `kg upload --event DIR [--as-of DATE]` | Identifies each file (doc_key in front matter, else by text similarity; unsure files go to `data/labels/doc_identification_queue.csv` for a person). Then uploads new versions: diffs each file against its current version in the graph, writes the new version (one transaction per file), reuses the node of every unchanged block, adds `SUPERSEDES`, sets the old version's `valid_to` and updates `Document.title`. Files already uploaded are skipped. |
+| `kg build --layer 1` | REFERENCES for the current version of every document in the graph: regex + document registry, one edge per cited section, stub documents for laws not in the store (rules in `docs/plan.md`). Rerunning changes nothing. |
+| `kg registry` | Lists the names and file names each document can be cited by (add reviewed extra names in `registry/aliases.yaml`) |
 | `kg reset --yes` | Deletes all pipeline nodes (Document, Version, Section, Block, Alias, Entity). Constraints and indexes stay. Cannot be undone. |
 | `kg diff --event DIR [--event DIR ...] [--review-out CSV]` | Matches uploaded files against their previous versions in `data/initial_corpus` (unchanged / edited / moved / removed / added) and optionally writes a review sheet for a person. Writes nothing to Neo4j. |
 
@@ -87,7 +89,16 @@ uv run python eval/make_blind_sheet.py
 uv run python eval/blind_agreement.py
 ```
 
-The first writes `data/labels/m2_blind_sample.csv` (30 old blocks to answer),
+REFERENCES (M3), blind labels then precision / recall:
+
+```powershell
+uv run python eval/make_references_sheet.py
+```
+```powershell
+uv run python eval/references_agreement.py
+```
+
+For the diff, the first writes `data/labels/m2_blind_sample.csv` (30 old blocks to answer),
 `m2_blind_new_blocks.csv` (every block of the uploaded files, with refs) and
 `m2_blind_key.json`. See the docstring of `eval/make_blind_sheet.py` for how
 to fill in `answer` and `new_refs`.
