@@ -43,6 +43,7 @@ name = "kg-pipeline"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "markdown-it-py" },
     { name = "neo4j" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -57,6 +58,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "markdown-it-py", specifier = ">=4.3" },
     { name = "neo4j", specifier = ">=6.4" },
     { name = "pydantic", specifier = ">=2.14" },
     { name = "python-dotenv", specifier = ">=1.2.4" },

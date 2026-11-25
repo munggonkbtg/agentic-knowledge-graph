@@ -7,10 +7,16 @@ Identity keys (decided in the M0/M1 plan):
 
 * ``Document.doc_key``  – from front matter, the same across versions.
 * ``Version.version_id`` – ``doc_key@<short file hash>``.
-* ``Block.block_id``     – ``doc_key/heading path/position``: *where* the block is.
+* ``Section.section_id`` – ``version_id::H2 > H3``: sections belong to one version.
+* ``Block.block_id``     – ``doc_key::H2 > H3::b<position>``: *where* the block is.
+  " > " separates headings because Thai section numbers contain "/" (มาตรา ๑๑/๑).
 * ``Block.block_uid``    – ``block_id#<short content hash>``: the node key. The same
   position with the same text reuses its node in a new version; edited text gets a
   new node, and the diff (M2) links it to the old one.
+
+Because one Block node can appear in several versions, its line range and order are
+stored on the Section-[:CONTAINS]->Block relationship (one per version), not on the
+node. The ``Block`` model below still carries them for the version being parsed.
 """
 
 from __future__ import annotations
@@ -22,6 +28,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 HASH_PREFIX_LEN = 12  # characters of the SHA-256 hex digest used inside IDs
+PATH_SEP = " > "
+ROOT_PATH = "_"  # path key of the document root (text before the first heading)
+
+
+def path_key(heading_path: tuple[str, ...]) -> str:
+    return PATH_SEP.join(heading_path) or ROOT_PATH
 
 
 class _Model(BaseModel):
@@ -101,7 +113,7 @@ class Version(_Model):
     doc_key: str = Field(min_length=1)
     file_hash: str = Field(min_length=HASH_PREFIX_LEN)  # SHA-256 hex of the raw file
     version_label: str  # free text from front matter, e.g. "git c953606 (2026-05-01)"
-    source_path: str
+    source_file: str  # file name only, so reruns from another folder match
     source_url: str | None = None
     license: str | None = None
     valid_from: datetime
@@ -123,7 +135,7 @@ class Section(_Model):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def section_id(self) -> str:
-        return f"{self.version_id}/" + "/".join(self.heading_path)
+        return f"{self.version_id}::{path_key(self.heading_path)}"
 
 
 class Block(_Model):

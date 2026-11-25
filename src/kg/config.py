@@ -24,11 +24,20 @@ class Neo4jSettings(BaseModel):
     database: str = "neo4j"
 
 
+class Layer0Settings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title_heading_in_path: bool = False
+    strip_footnote_markers: bool = True
+    footnote_marker_pattern: str = r"\[[0-9๐-๙]+\]"
+    thai_digits_to_arabic: bool = True
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
     model_config = ConfigDict(extra="forbid")
     neo4j: Neo4jSettings = Neo4jSettings()
+    layer0: Layer0Settings = Layer0Settings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

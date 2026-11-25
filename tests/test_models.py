@@ -31,7 +31,7 @@ def test_version_id_uses_doc_key_and_short_hash():
         doc_key="en-benefits-and-perks",
         file_hash="0123456789abcdef" + "0" * 48,
         version_label="git c953606 (2026-05-01)",
-        source_path="data/initial_corpus/E1.md",
+        source_file="E1.md",
         valid_from=T0,
     )
     assert v.version_id == "en-benefits-and-perks@0123456789ab"

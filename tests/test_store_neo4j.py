@@ -39,3 +39,20 @@ def test_ensure_schema_is_idempotent(store):
     store.ensure_schema()
     assert store.schema_names() == first
     assert {"document_doc_key", "block_block_uid", "rel_next_valid_to"} <= first
+
+
+def test_layer0_build_twice_gives_same_graph(store):
+    """M1 'done' check: a rerun of layer 0 on the initial corpus changes nothing."""
+    from conftest import INITIAL, T0
+    from kg.layer0_structure import parse_corpus
+
+    if not INITIAL.exists():
+        pytest.skip("data/initial_corpus not present")
+    cfg = load_config(ROOT / "config.yaml").layer0
+    for doc in parse_corpus(INITIAL, cfg, T0):
+        store.write_layer0(doc)
+    first = store.graph_snapshot()
+    for doc in parse_corpus(INITIAL, cfg, T0):
+        store.write_layer0(doc)
+    assert store.graph_snapshot() == first
+    assert first["block_uids"], "no blocks were written"

@@ -4,7 +4,7 @@ Research prototype: build a knowledge graph over a Markdown document store
 (Thai and English) and use it to find passages that need revision when a
 document is updated. Everything runs locally from the command line.
 
-Status: **M0 (setup)**.
+Status: **M1 (Layer 0: structure)** done; next is M2 (diff).
 
 ## 1. One-time setup
 
@@ -57,6 +57,30 @@ uv run kg init-schema
 | `kg ping` | Connects to Neo4j, creates/reads/deletes a test node |
 | `kg init-schema` | Creates uniqueness constraints and indexes (idempotent) |
 | `kg analyzers` | Lists the full-text analyzers Neo4j offers (checks for Thai support) |
+| `kg build --layer 0 [--corpus DIR] [--as-of DATE]` | Parses every `.md` file in DIR (default `data/initial_corpus`) and writes Document → Version → Section → Block with `HAS_VERSION`, `CONTAINS`, `NEXT`. One transaction per file; rerunning changes nothing. |
+| `kg stats` | Sections, blocks and `NEXT` edges per version, plus total counts |
+| `kg show-blocks FILE` | Parses one file and prints each block's ID, lines and kind (writes nothing) |
+
+Evaluation scripts live in `eval/`:
+
+```powershell
+uv run python eval/block_stability.py
+```
+
+### How blocks are identified (Layer 0)
+
+- `block_id` = `doc_key::Heading > Subheading::b<position in section>`, for example
+  `th-labour-protection-act-2541::หมวด 2 การใช้แรงงานทั่วไป > มาตรา 34::b0`.
+  Headings are normalized: footnote markers like `[๔๒]` removed, Thai digits
+  turned into Arabic. A single `#` title heading is left out of the path
+  (`layer0.title_heading_in_path` in `config.yaml`).
+- `content_hash` = SHA-256 of the normalized block text (same rules, plus
+  whitespace collapsed). Original text is kept unchanged in `text`.
+- `block_uid` = `block_id#<first 12 hex chars of content_hash>` is the node key,
+  so the same text at the same position reuses one node across versions.
+- Line ranges are 1-based, inclusive, and count the front matter. They are
+  stored on the `Section-[:CONTAINS]->Block` relationship, because one Block
+  node can belong to several versions.
 
 ## 3. Tests
 

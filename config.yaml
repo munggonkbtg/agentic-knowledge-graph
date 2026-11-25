@@ -6,6 +6,19 @@ neo4j:
   # user database, called "neo4j" by default.
   database: neo4j
 
+layer0:
+  # If a file has exactly one level-1 heading and it comes first, treat it as the
+  # document title instead of part of every block's heading path. Titles change
+  # between versions (e.g. T1 "(ฉบับ Update ล่าสุด)"), which would otherwise change
+  # every block_id in the file.
+  title_heading_in_path: false
+  # Footnote markers such as [๑๖] are removed before hashing (kept on the block in
+  # `footnotes`). They are renumbered between versions of the Thai laws.
+  strip_footnote_markers: true
+  footnote_marker_pattern: '\[[0-9๐-๙]+\]'
+  # Convert Thai digits (๐-๙) to Arabic (0-9) in heading paths and before hashing.
+  thai_digits_to_arabic: true
+
 # Later milestones will add sections here, for example:
 #   diff:   similarity threshold for "edited" vs "removed + added"  (M2)
 #   layer2: entity types, NER threshold                            (M4)

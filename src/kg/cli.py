@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
 from neo4j.exceptions import AuthError, ServiceUnavailable
 
 from kg.config import DEFAULT_CONFIG_PATH, MissingEnvError, load_config, load_neo4j_credentials
+from kg.layer0_structure import ParseError, parse_corpus, parse_file
 from kg.store import Store
 
 app = typer.Typer(help="Knowledge-graph pipeline (research prototype).", no_args_is_help=True)
@@ -79,6 +81,77 @@ def analyzers(config: Path = ConfigOption) -> None:
         typer.echo(f"  {name}")
     thai = [n for n in names if "thai" in n.lower()]
     typer.echo(f"Thai analyzer available: {', '.join(thai) if thai else 'no'}")
+
+
+def _as_of(value: datetime | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+@app.command()
+def build(
+    layer: int = typer.Option(..., "--layer", help="Which layer to build (only 0 so far)."),
+    corpus: Path = typer.Option(Path("data/initial_corpus"), "--corpus", help="Folder of .md files"),
+    as_of: datetime | None = typer.Option(
+        None, "--as-of", help="valid_from for new nodes and edges (default: now, UTC)."
+    ),
+    config: Path = ConfigOption,
+) -> None:
+    """Build one layer of the graph for every file in a folder."""
+    if layer != 0:
+        typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
+        raise typer.Exit(2)
+    cfg = load_config(config)
+    # Parse everything first, so a bad file stops the run before anything is written.
+    try:
+        docs = parse_corpus(corpus, cfg.layer0, _as_of(as_of))
+    except ParseError as e:
+        typer.secho(str(e), fg="red", err=True)
+        raise typer.Exit(1) from None
+    try:
+        with _open_store(config) as store:
+            for doc in docs:
+                store.write_layer0(doc)  # one transaction per document
+                typer.echo(f"  {doc.version.source_file}: {len(doc.sections)} sections, "
+                           f"{len(doc.blocks)} blocks")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"Layer 0 written for {len(docs)} files.", fg="green")
+
+
+@app.command()
+def stats(config: Path = ConfigOption) -> None:
+    """Show sections, blocks and NEXT edges per document version."""
+    try:
+        with _open_store(config) as store:
+            rows = store.version_stats()
+            snap = store.graph_snapshot()
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.echo(f"{'version':58} {'lang':4} {'sections':>8} {'blocks':>6} {'next':>5}")
+    for r in rows:
+        typer.echo(f"{r['version_id']:58} {r['language']:4} {r['sections']:>8} "
+                   f"{r['blocks']:>6} {r['next_edges']:>5}")
+    typer.echo(f"Nodes: {snap['labels']}")
+    typer.echo(f"Relationships: {snap['relationships']}")
+
+
+@app.command("show-blocks")
+def show_blocks(
+    file: Path = typer.Argument(..., help="A Markdown file to parse (nothing is written)."),
+    config: Path = ConfigOption,
+) -> None:
+    """Parse one file and print its blocks: ID, lines, kind and the start of the text."""
+    cfg = load_config(config)
+    doc = parse_file(file, cfg.layer0, _as_of(None))
+    for pb in doc.blocks:
+        b = pb.block
+        preview = b.text.replace("\n", " ")[:50]
+        typer.echo(f"{b.lines.start:>5}-{b.lines.end:<5} {b.kind.value:9} {b.block_id}\n"
+                   f"            {preview}")
 
 
 if __name__ == "__main__":
