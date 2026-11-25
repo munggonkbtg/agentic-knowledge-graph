@@ -26,3 +26,10 @@ def need_data():
     # The pilot files are not in git (license); skip data tests on a fresh clone.
     if not INITIAL.exists():
         pytest.skip("data/initial_corpus not present (see data/README.md)")
+
+
+@pytest.fixture(scope="session")
+def need_uploads(need_data):
+    # The upload files (new versions) are kept out of data/ until an upload is run.
+    if not any(UPLOADS.glob("*/*.md")):
+        pytest.skip("data/uploads not present (no upload files yet)")

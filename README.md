@@ -4,9 +4,9 @@ Research prototype: build a knowledge graph over a Markdown document store
 (Thai and English) and use it to find passages that need revision when a
 document is updated. Everything runs locally from the command line.
 
-Status: **M2 (diff)** built; waiting for the person's blind check
-(`data/labels/m2_blind_sample.csv`). Plan, decisions and open items:
-[docs/plan.md](docs/plan.md).
+Status: **M2 (diff)** built, not yet verified. The data set is reset to the
+initial corpus only (no uploads, labels or results yet). Plan, decisions and
+open items: [docs/plan.md](docs/plan.md).
 
 ## 1. One-time setup
 

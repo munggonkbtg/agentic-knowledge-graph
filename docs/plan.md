@@ -10,7 +10,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 |---|---|
 | M0 Setup | Done |
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
-| M2 Diff | Built; **waiting for the blind check** (`data/labels/m2_blind_sample.csv`) |
+| M2 Diff | Built, not verified. On 2026-11-25 the data set was reset to the initial corpus only: upload files, review / blind sheets (including the v1 labels) and result reports were deleted without backup, and the graph was rebuilt with the 8 initial documents. The blind check is redone once upload files are back (`eval/make_blind_sheet.py`) |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | Planned below (identification rules approved 2026-11-25); starts after M2 is verified |
 | M4-M7 | Not started |
@@ -108,5 +108,5 @@ precision >= 0.9, recall >= 0.8 against labels made by reading.
 | `valid_to IS NULL` cannot use a Neo4j range index | M5, when queries filter on validity |
 | `DEPENDS` evidence needs a quote from each block (one field today) | M7 |
 | Thai full-text analyzer exists (`thai`); quality not checked against PyThaiNLP | M5 hybrid search |
-| Full review sheet (v3) is stale after the list split | Rebuild after the blind answers, so it cannot anchor them |
+| Full review sheet (deleted with the data reset) | Rebuild after the blind answers, so it cannot anchor them |
 | Entity types, embedding model, LLM, `DEPENDS` labelling guide | Raised when the milestone starts (brief section 12) |

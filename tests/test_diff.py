@@ -121,7 +121,7 @@ def test_different_documents_are_rejected(tmp_path):
 
 
 @pytest.fixture(scope="module")
-def events(need_data):
+def events(need_uploads):
     olds = {d.document.doc_key: d for d in parse_corpus(INITIAL, L0, T0)}
     return {
         ev: diff_event(olds, parse_corpus(UPLOADS / ev, L0, T0), CFG, NORM)

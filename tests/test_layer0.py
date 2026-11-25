@@ -107,6 +107,7 @@ def test_arabic_digit_file_gets_same_style_path(layer0_cfg):
     assert _blocks_under(doc, "ข้อ 1")
 
 
+@pytest.mark.usefixtures("need_uploads")
 def test_footnote_marker_removed_from_heading_path(layer0_cfg):
     doc = parse_file(T1_NEW, layer0_cfg, T0)
     paths = {ps.section.heading_path for ps in doc.sections}
@@ -131,6 +132,7 @@ def test_duplicate_headings_get_suffix(tmp_path, layer0_cfg):
 # ------------------------------------------------------------- hashing
 
 
+@pytest.mark.usefixtures("need_uploads")
 def test_footnote_marker_does_not_change_hash(layer0_cfg):
     doc = parse_file(T1_NEW, layer0_cfg, T0)
     (b34,) = _blocks_under(doc, "มาตรา 34")
@@ -139,6 +141,7 @@ def test_footnote_marker_does_not_change_hash(layer0_cfg):
     assert b34.content_hash == n.content_hash(b34.text.replace("[๑๖]", ""))
 
 
+@pytest.mark.usefixtures("need_uploads")
 def test_amended_section_hash_differs_between_versions(layer0_cfg):
     old = _blocks_under(parse_file(T1_OLD, layer0_cfg, T0), "มาตรา 34")[0]
     new = _blocks_under(parse_file(T1_NEW, layer0_cfg, T0), "มาตรา 34")[0]
