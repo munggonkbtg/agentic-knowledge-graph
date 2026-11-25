@@ -77,6 +77,20 @@ uv run python eval/diff_threshold.py
 uv run python eval/diff_agreement.py
 ```
 
+Blind check of the diff (the person never sees the diff's answers):
+
+```powershell
+uv run python eval/make_blind_sheet.py
+```
+```powershell
+uv run python eval/blind_agreement.py
+```
+
+The first writes `data/labels/m2_blind_sample.csv` (30 old blocks to answer),
+`m2_blind_new_blocks.csv` (every block of the uploaded files, with refs) and
+`m2_blind_key.json`. See the docstring of `eval/make_blind_sheet.py` for how
+to fill in `answer` and `new_refs`.
+
 ### How blocks are identified (Layer 0)
 
 - `block_id` = `doc_key::Heading > Subheading::b<position in section>`, for example
