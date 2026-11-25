@@ -1,0 +1,23 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Python / tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Corpus and labels: the English files (37signals handbook) have no license
+# and must not be redistributed, so no document data goes into git.
+data/*
+!data/README.md
+corpus/
+
+# Local caches
+*.sqlite
+*.sqlite3

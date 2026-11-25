@@ -1,0 +1,14 @@
+# Tunable values for the pipeline. Secrets (passwords, API keys) do NOT go here;
+# they are read from environment variables (see .env.example).
+
+neo4j:
+  # Name of the database inside the Neo4j server. Community edition has one
+  # user database, called "neo4j" by default.
+  database: neo4j
+
+# Later milestones will add sections here, for example:
+#   diff:   similarity threshold for "edited" vs "removed + added"  (M2)
+#   layer2: entity types, NER threshold                            (M4)
+#   hubs:   hub cut-off                                             (M4/M5)
+#   llm:    model names, prompt_version                             (M3+)
+#   impact: N (checker budget)                                      (M5)
