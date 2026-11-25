@@ -16,7 +16,6 @@ build/
 # and must not be redistributed, so no document data goes into git.
 data/*
 !data/README.md
-corpus/
 
 # Local caches
 *.sqlite
