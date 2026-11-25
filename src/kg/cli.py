@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,7 +11,8 @@ import typer
 from neo4j.exceptions import AuthError, ServiceUnavailable
 
 from kg.config import DEFAULT_CONFIG_PATH, MissingEnvError, load_config, load_neo4j_credentials
-from kg.layer0_structure import ParseError, parse_corpus, parse_file
+from kg.diff import REVIEW_COLUMNS, VERDICT_HELP, MatchStatus, diff_event, review_rows
+from kg.layer0_structure import Normalizer, ParseError, parse_corpus, parse_file
 from kg.store import Store
 
 app = typer.Typer(help="Knowledge-graph pipeline (research prototype).", no_args_is_help=True)
@@ -152,6 +155,50 @@ def show_blocks(
         preview = b.text.replace("\n", " ")[:50]
         typer.echo(f"{b.lines.start:>5}-{b.lines.end:<5} {b.kind.value:9} {b.block_id}\n"
                    f"            {preview}")
+
+
+@app.command()
+def diff(
+    event: list[Path] = typer.Option(..., "--event", help="Upload folder (repeat for several)."),
+    old_dir: Path = typer.Option(Path("data/initial_corpus"), "--old-dir",
+                                 help="Folder holding the previous versions."),
+    review_out: Path | None = typer.Option(
+        None, "--review-out", help="Write a CSV for a person to check (UTF-8, opens in Excel)."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing review file."),
+    config: Path = ConfigOption,
+) -> None:
+    """Match blocks of uploaded files against their previous versions (nothing is written
+    to Neo4j)."""
+    cfg = load_config(config)
+    norm = Normalizer(cfg.layer0)
+    now = _as_of(None)
+    olds = {d.document.doc_key: d for d in parse_corpus(old_dir, cfg.layer0, now)}
+    statuses = [s.value for s in MatchStatus]
+    typer.echo(f"edit_similarity_threshold = {cfg.diff.edit_similarity_threshold}")
+    typer.echo(f"{'event':10} {'document':42} " + " ".join(f"{s:>9}" for s in statuses))
+    rows: list[dict] = []
+    for folder in event:
+        results = diff_event(olds, parse_corpus(folder, cfg.layer0, now), cfg.diff, norm)
+        for d in results:
+            counts = Counter(m.status.value for m in d.matches)
+            label = d.doc_key + ("" if d.old else " (new)")
+            typer.echo(f"{folder.name:10} {label:42} "
+                       + " ".join(f"{counts[s]:>9}" for s in statuses))
+        rows += review_rows(folder.name, results, norm)
+
+    if review_out is not None:
+        if review_out.exists() and not force:
+            typer.secho(f"{review_out} already exists (it may hold a person's labels). "
+                        "Use --force to overwrite.", fg="red", err=True)
+            raise typer.Exit(1)
+        review_out.parent.mkdir(parents=True, exist_ok=True)
+        # utf-8-sig adds a marker so Excel shows Thai text correctly.
+        with review_out.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=REVIEW_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+        typer.echo(f"Wrote {len(rows)} rows to {review_out}")
+        typer.echo(VERDICT_HELP)
 
 
 if __name__ == "__main__":

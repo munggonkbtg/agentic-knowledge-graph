@@ -4,7 +4,8 @@ Research prototype: build a knowledge graph over a Markdown document store
 (Thai and English) and use it to find passages that need revision when a
 document is updated. Everything runs locally from the command line.
 
-Status: **M1 (Layer 0: structure)** done; next is M2 (diff).
+Status: **M2 (diff)** built; waiting for the person's check of
+`data/labels/m2_diff_review.csv`.
 
 ## 1. One-time setup
 
@@ -60,11 +61,18 @@ uv run kg init-schema
 | `kg build --layer 0 [--corpus DIR] [--as-of DATE]` | Parses every `.md` file in DIR (default `data/initial_corpus`) and writes Document → Version → Section → Block with `HAS_VERSION`, `CONTAINS`, `NEXT`. One transaction per file; rerunning changes nothing. |
 | `kg stats` | Sections, blocks and `NEXT` edges per version, plus total counts |
 | `kg show-blocks FILE` | Parses one file and prints each block's ID, lines and kind (writes nothing) |
+| `kg diff --event DIR [--event DIR ...] [--review-out CSV]` | Matches uploaded files against their previous versions in `data/initial_corpus` (unchanged / edited / moved / removed / added) and optionally writes a review sheet for a person. Writes nothing to Neo4j. |
 
-Evaluation scripts live in `eval/`:
+Evaluation scripts live in `eval/` and write counts (no document text) to `eval/results/`:
 
 ```powershell
 uv run python eval/block_stability.py
+```
+```powershell
+uv run python eval/diff_threshold.py
+```
+```powershell
+uv run python eval/diff_agreement.py
 ```
 
 ### How blocks are identified (Layer 0)

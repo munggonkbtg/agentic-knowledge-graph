@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 DEFAULT_CONFIG_PATH = Path("config.yaml")
 
@@ -32,12 +32,21 @@ class Layer0Settings(BaseModel):
     thai_digits_to_arabic: bool = True
 
 
+class DiffSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    edit_similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    cross_section_edit_threshold: float | None = Field(default=0.8, ge=0.0, le=1.0)
+    align_renamed_sections: bool = True
+    detect_cross_document_moves: bool = True
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
     model_config = ConfigDict(extra="forbid")
     neo4j: Neo4jSettings = Neo4jSettings()
     layer0: Layer0Settings = Layer0Settings()
+    diff: DiffSettings = DiffSettings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
