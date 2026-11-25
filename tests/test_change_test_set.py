@@ -74,3 +74,17 @@ def test_synthetic_build_end_to_end_in_a_scratch_folder(tmp_path, monkeypatch):
     assert (tmp_path / "uploads_synthetic" / "S01").exists()
     cands = list(csv.DictReader(open(tmp_path / "m5s_candidates.csv", encoding="utf-8-sig")))
     assert cands and "needs_review" in cands[0] and "sources" not in cands[0]
+
+
+def test_rrf_fuses_rankings_and_rewards_agreement():
+    import importlib.util
+
+    if importlib.util.find_spec("numpy") is None:
+        import pytest
+        pytest.skip("numpy (embed group) not installed")
+    from compare_embeddings import rrf
+
+    fused = rrf(["a", "b", "c"], ["b", "a", "d"])
+    assert fused[:2] == ["a", "b"] or fused[:2] == ["b", "a"]
+    assert fused.index("c") > 1 and fused.index("d") > 1
+    assert rrf(["x", "y"], ["x", "y"]) == ["x", "y"]

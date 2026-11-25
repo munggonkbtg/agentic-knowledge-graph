@@ -13,7 +13,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | M2 Diff | **Verified 2026-11-25** by a blind check (30 old blocks, 10 per upload event, person never saw the diff): status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the person said same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional) Known case checked separately (blind, hand-picked): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> person: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
 | M3 Layer 1 | **Done 2026-11-25** (started before M2 was verified, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test: precision 0.94, recall 0.94 |
-| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv); (2) synthetic edits written by the person (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the person (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates (m5s_candidates.csv), to be labelled |
+| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv); (2) synthetic edits written by the person (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the person (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates (m5s_candidates.csv), to be labelled **Synthetic labelled (179):** needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the person found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total:** needs_review 41 (states 9, cites 29, depends 3) over 13 real + synthetic events with positives. Weak spot: "depends" has only 3 examples, and no embedding method was in the pool, so blocks that depend on a fact without sharing words may be missing; when embeddings exist, pool their top results too and judge them blind |
 | M4-M7 | Not started |
 
 ## Decisions so far
@@ -171,6 +171,27 @@ dev set, where links scored 1.00, and link rules did not change).
 Earlier note: a person fills the blind sheet
 (`eval/make_references_sheet.py` -> `data/labels/m3_references_sample.csv`, 77 blocks),
 then `eval/references_agreement.py` gives precision and recall against it.
+
+## Embedding model (M4 / M5), first comparison 2026-11-25
+
+Approved download: intfloat/multilingual-e5-large only (2.24 GB, MIT); CPU-only
+PyTorch in the `embed` dependency group. `eval/compare_embeddings.py`, results
+in `eval/results/embedding_comparison.md`:
+
+- Task B, same passage after an edit (no labels needed): hit@1 Thai 0.95 for
+  both char3 and e5, English char3 1.00 / e5 0.95. e5 handles Thai as well as
+  the lexical method here.
+- Task A, impact retrieval on the M5 change test set: recall@10 char3 0.56,
+  e5 0.44, hybrid (RRF) 0.54. **Not a fair test yet:** 20 of the 41 positive
+  blocks were pooled by char3's own top 3, and no embedding method was in the
+  pool, so blocks only e5 would find were never judged.
+- Speed: 641 texts in 273 s on CPU (about 0.4 s each); the model loads in 42 s.
+
+Pool extension built (`eval/make_e5_pool.py`, 2026-11-25): for every change
+item (40 real, 15 synthetic), e5's top 5 and char3 extended from depth 3 to 5,
+so both methods are judged to the same depth; blocks judged before are skipped.
+128 new blocks to judge blind in `data/labels/m5e_candidates.csv` (e5 only 79,
+char3 only 27, both 22). After labelling, rerun the comparison on all labels.
 
 ## Open items carried forward
 
