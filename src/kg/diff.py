@@ -11,9 +11,12 @@ Given the old and new version of a document, label every block:
                   document uploaded in the same event (exact or similar text).
 * ``removed`` / ``added`` – everything left over.
 
-Blocks under a heading listed in ``diff.exact_only_sections`` (the Thai footnote
-lists) are matched in pass 1 only: their text is a template, so similarity would
-pair unrelated entries.
+Blocks with ``role == footnote`` (entries of the Thai footnote lists, see
+``layer0.footnote_sections``) are matched in pass 1 only: their text is a
+template, so similarity would pair unrelated entries.
+
+Pass 3 has its own threshold, ``diff.move_similarity_threshold``, because a
+paragraph moved to another document is often rewritten on the way.
 
 "Same section" means the same normalized heading path. With
 ``align_renamed_sections`` a renamed heading still counts as the same section when
@@ -36,6 +39,7 @@ from rapidfuzz import fuzz
 
 from kg.config import DiffSettings
 from kg.layer0_structure import Normalizer, ParsedBlock, ParsedDocument
+from kg.models import BlockRole
 
 
 class MatchStatus(StrEnum):
@@ -66,8 +70,9 @@ def _section_paths(doc: ParsedDocument) -> dict[str, tuple[str, ...]]:
     return {ps.section.section_id: ps.section.heading_path for ps in doc.sections}
 
 
-def _exact_only(heading_path: tuple[str, ...], cfg: DiffSettings) -> bool:
-    return any(h in cfg.exact_only_sections for h in heading_path)
+def _fuzzy(pb: ParsedBlock) -> bool:
+    """May this block be paired by similarity (passes 2, 2b, 3)?"""
+    return pb.block.role != BlockRole.FOOTNOTE
 
 
 def _greedy(
@@ -134,8 +139,8 @@ def diff_versions(
                 claimed.add(target)
 
     # Blocks in exact-only sections (e.g. footnote lists) stop after pass 1.
-    old_fuzzy = {i for i in old_left if not _exact_only(old_path[olds[i].section_id], cfg)}
-    new_fuzzy = {i for i in new_left if not _exact_only(new_path[news[i].section_id], cfg)}
+    old_fuzzy = {i for i in old_left if _fuzzy(olds[i])}
+    new_fuzzy = {i for i in new_left if _fuzzy(news[i])}
 
     # ---- pass 2: similar text within the same (aligned) section -------------
     old_norm = {i: norm.normalize(olds[i].block.text) for i in old_fuzzy}
@@ -210,19 +215,10 @@ def diff_event(
 
 def _detect_moves(results: list[DocumentDiff], cfg: DiffSettings, norm: Normalizer) -> None:
     """Pass 3: pair removed blocks with added blocks of *other* documents."""
-    paths: dict[str, tuple[str, ...]] = {}
-    for d in results:
-        for doc in (d.old, d.new):
-            if doc is not None:
-                paths.update(_section_paths(doc))
-
-    def fuzzy(pb: ParsedBlock) -> bool:
-        return not _exact_only(paths[pb.section_id], cfg)
-
     removed = [(d, i, m) for d in results for i, m in enumerate(d.matches)
-               if m.status == MatchStatus.REMOVED and fuzzy(m.old)]
+               if m.status == MatchStatus.REMOVED and _fuzzy(m.old)]
     added = [(d, i, m) for d in results for i, m in enumerate(d.matches)
-             if m.status == MatchStatus.ADDED and fuzzy(m.new)]
+             if m.status == MatchStatus.ADDED and _fuzzy(m.new)]
     pairs = []
     for ri, (rd, _, rm) in enumerate(removed):
         r_text = norm.normalize(rm.old.block.text)
@@ -235,7 +231,7 @@ def _detect_moves(results: list[DocumentDiff], cfg: DiffSettings, norm: Normaliz
                 score = similarity(r_text, norm.normalize(am.new.block.text))
             pairs.append((score, 0, ri, ai))
     replace: dict[int, dict[int, BlockMatch | None]] = defaultdict(dict)
-    for ri, ai, score in _greedy(pairs, cfg.edit_similarity_threshold):
+    for ri, ai, score in _greedy(pairs, cfg.move_similarity_threshold):
         rd, r_idx, rm = removed[ri]
         ad, a_idx, am = added[ai]
         # The moved pair is recorded once, on the document it moved *to*.
@@ -262,7 +258,7 @@ def _detect_moves(results: list[DocumentDiff], cfg: DiffSettings, norm: Normaliz
 # their position did not change, so there is nothing to judge.
 
 REVIEW_COLUMNS = [
-    "row_id", "event", "doc_key", "status", "similarity",
+    "row_id", "event", "doc_key", "status", "role", "similarity",
     "old_file", "old_block_id", "old_lines", "new_file", "new_block_id", "new_lines",
     "old_text", "new_text", "closest_other_block_id", "closest_other_similarity",
     # filled in by the person:
@@ -307,6 +303,8 @@ def review_rows(event: str, results: list[DocumentDiff], norm: Normalizer) -> li
                 "event": event,
                 "doc_key": d.doc_key,
                 "status": m.status.value,
+                "role": ("footnote" if any(pb is not None and not _fuzzy(pb)
+                                           for pb in (m.old, m.new)) else "body"),
                 "similarity": "" if m.similarity is None else f"{m.similarity:.3f}",
                 "old_file": source_old if m.old else "",
                 "old_block_id": m.old.block.block_id if m.old else "",

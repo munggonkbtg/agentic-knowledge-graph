@@ -173,3 +173,51 @@ def test_missing_doc_key_is_an_error(tmp_path, layer0_cfg):
 def test_empty_folder_is_an_error(tmp_path, layer0_cfg):
     with pytest.raises(ParseError):
         parse_corpus(Path(tmp_path), layer0_cfg, T0)
+
+
+# ------------------------------------------------------------- role and list splitting
+
+T5 = INITIAL / "T5_regulation_criminal_proceedings_2558.md"
+
+
+def test_footnote_list_blocks_get_footnote_role(layer0_cfg):
+    from kg.models import BlockRole
+
+    doc = parse_file(T1_OLD, layer0_cfg, T0)
+    roles = {}
+    for pb in doc.blocks:
+        in_fn = "เชิงอรรถ" in pb.block.block_id.split("::")[1].split(" > ")
+        assert (pb.block.role == BlockRole.FOOTNOTE) == in_fn
+        roles[pb.block.role] = roles.get(pb.block.role, 0) + 1
+    assert roles[BlockRole.FOOTNOTE] == 74
+
+
+def test_long_lists_are_split_into_items(layer0_cfg):
+    doc = parse_file(T5, layer0_cfg, T0)
+    items = [pb.block for pb in doc.blocks if pb.block.kind == BlockKind.LIST_ITEM]
+    assert items
+    assert not any(pb.block.kind == BlockKind.LIST and len(pb.block.text) > 1500
+                   for pb in doc.blocks)
+    # every item starts with a list marker and holds no other top-level item
+    for b in items:
+        first = b.text.lstrip()
+        assert first.startswith(("-", "*", "+")) or first[:1].isdigit()
+
+
+def test_splitting_can_be_switched_off(layer0_cfg):
+    off = layer0_cfg.model_copy(update={"split_list_over_chars": None})
+    doc = parse_file(T5, off, T0)
+    assert not any(pb.block.kind == BlockKind.LIST_ITEM for pb in doc.blocks)
+
+
+def test_nested_list_stays_inside_its_item(tmp_path, layer0_cfg):
+    long = "x" * 40
+    body = "".join(f"- item {i} {long}\n  - nested {i} {long}\n" for i in range(3))
+    f = tmp_path / "n.md"
+    f.write_text(f"---\ndoc_key: test-nested\ntitle: N\nlanguage: en\n---\n# N\n\n{body}",
+                 encoding="utf-8")
+    cfg = layer0_cfg.model_copy(update={"split_list_over_chars": 50})
+    doc = parse_file(f, cfg, T0)
+    assert [pb.block.kind for pb in doc.blocks] == [BlockKind.LIST_ITEM] * 3
+    assert all("nested" in pb.block.text for pb in doc.blocks)
+    assert [pb.block.lines.start for pb in doc.blocks] == [8, 10, 12]  # front matter 1-5, title 6, blank 7

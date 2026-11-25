@@ -147,13 +147,14 @@ def show_blocks(
     file: Path = typer.Argument(..., help="A Markdown file to parse (nothing is written)."),
     config: Path = ConfigOption,
 ) -> None:
-    """Parse one file and print its blocks: ID, lines, kind and the start of the text."""
+    """Parse one file and print its blocks: ID, lines, kind, role and the start of the text."""
     cfg = load_config(config)
     doc = parse_file(file, cfg.layer0, _as_of(None))
     for pb in doc.blocks:
         b = pb.block
         preview = b.text.replace("\n", " ")[:50]
-        typer.echo(f"{b.lines.start:>5}-{b.lines.end:<5} {b.kind.value:9} {b.block_id}\n"
+        role = "" if b.role.value == "body" else f" [{b.role.value}]"
+        typer.echo(f"{b.lines.start:>5}-{b.lines.end:<5} {b.kind.value:9} {b.block_id}{role}\n"
                    f"            {preview}")
 
 
@@ -174,7 +175,9 @@ def diff(
     now = _as_of(None)
     olds = {d.document.doc_key: d for d in parse_corpus(old_dir, cfg.layer0, now)}
     statuses = [s.value for s in MatchStatus]
-    typer.echo(f"edit_similarity_threshold = {cfg.diff.edit_similarity_threshold}")
+    typer.echo(f"edit_similarity_threshold = {cfg.diff.edit_similarity_threshold}, "
+               f"cross_section_edit_threshold = {cfg.diff.cross_section_edit_threshold}, "
+               f"move_similarity_threshold = {cfg.diff.move_similarity_threshold}")
     typer.echo(f"{'event':10} {'document':42} " + " ".join(f"{s:>9}" for s in statuses))
     rows: list[dict] = []
     for folder in event:

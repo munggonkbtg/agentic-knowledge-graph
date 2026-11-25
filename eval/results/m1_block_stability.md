@@ -8,7 +8,7 @@ Counts of OLD blocks by what happens to them in the NEW version. Exact matching 
 |---|---|---|---|---|---|---|---|
 | E1 | 42 | 42 | 19 | 0 | 13 | 10 | 19 (45%) |
 | E3 (+E2) | 18 | 23 | 8 | 1 | 4 | 5 | 9 (50%) |
-| T1 | 320 | 345 | 227 | 63 | 28 | 2 | 290 (91%) |
+| T1 | 325 | 351 | 232 | 63 | 28 | 2 | 295 (91%) |
 
 ## title heading kept in path
 
@@ -16,7 +16,7 @@ Counts of OLD blocks by what happens to them in the NEW version. Exact matching 
 |---|---|---|---|---|---|---|---|
 | E1 | 42 | 42 | 19 | 0 | 13 | 10 | 19 (45%) |
 | E3 (+E2) | 18 | 23 | 8 | 1 | 4 | 5 | 9 (50%) |
-| T1 | 320 | 345 | 0 | 290 | 0 | 30 | 290 (91%) |
+| T1 | 325 | 351 | 0 | 295 | 0 | 30 | 295 (91%) |
 
 ## no text normalization (markers and Thai digits kept)
 
@@ -24,4 +24,4 @@ Counts of OLD blocks by what happens to them in the NEW version. Exact matching 
 |---|---|---|---|---|---|---|---|
 | E1 | 42 | 42 | 19 | 0 | 13 | 10 | 19 (45%) |
 | E3 (+E2) | 18 | 23 | 8 | 1 | 4 | 5 | 9 (50%) |
-| T1 | 320 | 345 | 170 | 4 | 136 | 10 | 174 (54%) |
+| T1 | 325 | 351 | 175 | 4 | 136 | 10 | 179 (55%) |

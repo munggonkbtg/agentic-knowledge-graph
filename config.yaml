@@ -18,6 +18,14 @@ layer0:
   footnote_marker_pattern: '\[[0-9๐-๙]+\]'
   # Convert Thai digits (๐-๙) to Arabic (0-9) in heading paths and before hashing.
   thai_digits_to_arabic: true
+  # Blocks under these headings (normalized, any level) get role "footnote"
+  # instead of "body", so later layers can skip them. The Thai laws end with a
+  # เชิงอรรถ list of amendment history (74 of 320 blocks in the old T1).
+  footnote_sections: ["เชิงอรรถ"]
+  # A top-level list longer than this many characters becomes one block per
+  # top-level item (kind "list_item"); shorter lists stay one block.
+  # null = never split.
+  split_list_over_chars: 1500
 
 diff:
   # PROVISIONAL (open question): minimum text similarity (0-1, rapidfuzz ratio on
@@ -35,11 +43,15 @@ diff:
   # Look for removed blocks among the added blocks of the *other* documents in the
   # same upload event (e.g. the severance paragraph moving from E3 to E2).
   detect_cross_document_moves: true
-  # Blocks under these headings (normalized, any level) are matched by identical
-  # text only (pass 1); passes 2, 2b and 3 skip them. The Thai footnote lists are
-  # template text ("มาตรา X แก้ไขเพิ่มเติมโดย ... (ฉบับที่ Y)"), so similarity pairs
-  # unrelated entries.
-  exact_only_sections: ["เชิงอรรถ"]
+  # PROVISIONAL: minimum similarity for pass 3 (moved to another document). Kept
+  # apart from edit_similarity_threshold because moved text is often rewritten:
+  # the E3 -> E2 severance paragraphs score 0.44 and 0.49, but unrelated English
+  # paragraphs already score 0.41-0.44, so lowering this alone adds false moves.
+  # To be set from the blind labels.
+  move_similarity_threshold: 0.5
+  # Footnote entries (role "footnote", see layer0.footnote_sections) are matched
+  # by identical text only: their text is a template ("มาตรา X แก้ไขเพิ่มเติมโดย
+  # ... (ฉบับที่ Y)"), so similarity would pair unrelated entries.
 
 # Later milestones will add sections here, for example:
 #   layer2: entity types, NER threshold                            (M4)

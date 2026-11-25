@@ -29,6 +29,7 @@ from kg.config import Layer0Settings
 from kg.models import (
     Block,
     BlockKind,
+    BlockRole,
     Document,
     Language,
     LineRange,
@@ -219,24 +220,54 @@ def parse_file(path: Path, cfg: Layer0Settings, valid_from: datetime) -> ParsedD
         if kind is None or tok.map is None:
             continue  # e.g. horizontal rules, closing tokens
         current = stack[-1] if stack else opened[0]
+        role = (BlockRole.FOOTNOTE
+                if any(h in cfg.footnote_sections for h in current.heading_path)
+                else BlockRole.BODY)
         start, end = file_lines(tok.map)
-        block_text = "\n".join(lines[start - 1 : end])
-        order = block_counts.get(current.section_id, 0)
-        block_counts[current.section_id] = order + 1
-        block = Block(
-            doc_key=doc_key,
-            block_id=f"{doc_key}::{path_key(current.heading_path)}::b{order}",
-            kind=kind,
-            text=block_text,
-            content_hash=norm.content_hash(block_text),
-            lines=LineRange(start=start, end=end),
-            order=order,
-            footnotes=norm.footnote_markers(block_text),
-        )
-        blocks.append(ParsedBlock(block, current.section_id))
+
+        # A long top-level list becomes one block per top-level item.
+        pieces: list[tuple[BlockKind, int, int]] = [(kind, start, end)]
+        limit = cfg.split_list_over_chars
+        if kind == BlockKind.LIST and limit is not None:
+            whole = "\n".join(lines[start - 1 : end])
+            if len(whole) > limit:
+                pieces = [(BlockKind.LIST_ITEM, *file_lines(t.map))
+                          for t in _top_level_items(tokens, i)]
+
+        for piece_kind, p_start, p_end in pieces:
+            block_text = "\n".join(lines[p_start - 1 : p_end])
+            order = block_counts.get(current.section_id, 0)
+            block_counts[current.section_id] = order + 1
+            block = Block(
+                doc_key=doc_key,
+                block_id=f"{doc_key}::{path_key(current.heading_path)}::b{order}",
+                kind=piece_kind,
+                role=role,
+                text=block_text,
+                content_hash=norm.content_hash(block_text),
+                lines=LineRange(start=p_start, end=p_end),
+                order=order,
+                footnotes=norm.footnote_markers(block_text),
+            )
+            blocks.append(ParsedBlock(block, current.section_id))
 
     sections = _close_sections(opened, vid, lines)
     return ParsedDocument(document, version, sections, tuple(blocks))
+
+
+def _top_level_items(tokens: list, list_open_index: int) -> list:
+    """The list_item_open tokens that belong directly to the list opened at
+    ``tokens[list_open_index]`` (nested lists stay inside their item)."""
+    opener = tokens[list_open_index]
+    item_level = opener.level + 1
+    closer = opener.type.replace("_open", "_close")
+    items = []
+    for tok in tokens[list_open_index + 1 :]:
+        if tok.type == closer and tok.level == opener.level:
+            break
+        if tok.type == "list_item_open" and tok.level == item_level:
+            items.append(tok)
+    return items
 
 
 def _close_sections(

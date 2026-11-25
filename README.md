@@ -86,6 +86,10 @@ uv run python eval/diff_agreement.py
   whitespace collapsed). Original text is kept unchanged in `text`.
 - `block_uid` = `block_id#<first 12 hex chars of content_hash>` is the node key,
   so the same text at the same position reuses one node across versions.
+- A top-level list longer than `layer0.split_list_over_chars` (1,500) becomes
+  one block per top-level item (`kind = list_item`); shorter lists stay one block.
+- Blocks under a heading in `layer0.footnote_sections` (`เชิงอรรถ`) get
+  `role = footnote`; all others get `role = body`. Later layers skip footnotes.
 - Line ranges are 1-based, inclusive, and count the front matter. They are
   stored on the `Section-[:CONTAINS]->Block` relationship, because one Block
   node can belong to several versions.

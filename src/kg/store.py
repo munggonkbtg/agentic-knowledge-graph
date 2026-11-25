@@ -229,6 +229,7 @@ def _layer0_payload(doc: ParsedDocument) -> dict[str, object]:
                 "block_id": pb.block.block_id,
                 "doc_key": pb.block.doc_key,
                 "kind": pb.block.kind.value,
+                "role": pb.block.role.value,
                 "text": pb.block.text,
                 "content_hash": pb.block.content_hash,
                 "footnotes": list(pb.block.footnotes),

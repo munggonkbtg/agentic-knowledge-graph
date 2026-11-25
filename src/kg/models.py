@@ -52,9 +52,17 @@ class BlockKind(StrEnum):
     PARAGRAPH = "paragraph"
     TABLE = "table"
     LIST = "list"
+    LIST_ITEM = "list_item"  # one item of a long list that was split
     BLOCKQUOTE = "blockquote"
     CODE = "code"
     HTML = "html"
+
+
+class BlockRole(StrEnum):
+    """What the block is for, independent of its Markdown kind."""
+
+    BODY = "body"
+    FOOTNOTE = "footnote"  # an entry in a footnote list (amendment history)
 
 
 class Method(StrEnum):
@@ -142,6 +150,7 @@ class Block(_Model):
     doc_key: str
     block_id: str = Field(min_length=1)
     kind: BlockKind
+    role: BlockRole = BlockRole.BODY
     text: str = Field(min_length=1)  # original text, unchanged
     content_hash: str = Field(min_length=HASH_PREFIX_LEN)  # SHA-256 of normalized text
     lines: LineRange

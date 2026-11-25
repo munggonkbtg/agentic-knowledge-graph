@@ -11,18 +11,18 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event1 | 0.7 | 19 | 13 | 0 | 10 | 10 |
 | event1 | 0.8 | 19 | 13 | 0 | 10 | 10 |
 | event1 | 0.9 | 19 | 13 | 0 | 10 | 10 |
-| event2 | 0.4 | 9 | 7 | 2 | 0 | 5 |
+| event2 | 0.4 | 9 | 7 | 0 | 2 | 7 |
 | event2 | 0.5 | 9 | 7 | 0 | 2 | 7 |
 | event2 | 0.6 | 9 | 5 | 0 | 4 | 9 |
 | event2 | 0.7 | 9 | 5 | 0 | 4 | 9 |
 | event2 | 0.8 | 9 | 4 | 0 | 5 | 10 |
 | event2 | 0.9 | 9 | 4 | 0 | 5 | 10 |
-| event3 | 0.4 | 290 | 20 | 1 | 9 | 73 |
-| event3 | 0.5 | 290 | 20 | 1 | 9 | 73 |
-| event3 | 0.6 | 290 | 19 | 1 | 10 | 74 |
-| event3 | 0.7 | 290 | 16 | 1 | 13 | 77 |
-| event3 | 0.8 | 290 | 12 | 1 | 17 | 81 |
-| event3 | 0.9 | 290 | 12 | 1 | 17 | 81 |
+| event3 | 0.4 | 295 | 20 | 1 | 9 | 74 |
+| event3 | 0.5 | 295 | 20 | 1 | 9 | 74 |
+| event3 | 0.6 | 295 | 19 | 1 | 10 | 75 |
+| event3 | 0.7 | 295 | 16 | 3 | 11 | 76 |
+| event3 | 0.8 | 295 | 12 | 5 | 13 | 78 |
+| event3 | 0.9 | 295 | 12 | 5 | 13 | 78 |
 
 ## Edited and moved pairs at threshold 0.4, lowest score first
 
@@ -43,8 +43,6 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event1 | edited | 0.99 | `en-benefits-and-perks::Health Insurance > Health Insurance for Staff Outside the US::b0` | `en-benefits-and-perks::Health Insurance > Health Insurance for Staff Outside the US::b0` |
 | event1 | edited | 0.99 | `en-benefits-and-perks::Employee Profit Sharing::b0` | `en-benefits-and-perks::Employee Profit Sharing::b0` |
 | event1 | edited | 1.00 | `en-benefits-and-perks::Personal 37signals Accounts::b0` | `en-benefits-and-perks::Personal 37signals Accounts::b0` |
-| event2 | moved | 0.44 | `en-making-a-career::Performance Improvement Plans::b0` | `en-severance::_::b0` |
-| event2 | moved | 0.49 | `en-making-a-career::Performance Improvement Plans::b1` | `en-severance::_::b1` |
 | event2 | edited | 0.52 | `en-making-a-career::Mastery & Titles::b3` | `en-making-a-career::Mastery & Titles::b5` |
 | event2 | edited | 0.53 | `en-making-a-career::Mastery & Titles::b2` | `en-making-a-career::Mastery & Titles::b2` |
 | event2 | edited | 0.78 | `en-making-a-career::Your First 90 Days::b2` | `en-making-a-career::Your First Year::b3` |
@@ -56,7 +54,7 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event3 | edited | 0.67 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 155/1::b0` | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 155/1::b0` |
 | event3 | edited | 0.67 | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 53::b0` | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 53::b0` |
 | event3 | edited | 0.68 | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 13::b0` | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 13::b0` |
-| event3 | edited | 0.76 | `th-labour-protection-act-2541::มาตรา 5::b1` | `th-labour-protection-act-2541::มาตรา 5::b1` |
+| event3 | edited | 0.76 | `th-labour-protection-act-2541::มาตรา 5::b2` | `th-labour-protection-act-2541::มาตรา 5::b2` |
 | event3 | edited | 0.76 | `th-labour-protection-act-2541::หมวด 3 การใช้แรงงานหญิง > มาตรา 41::b0` | `th-labour-protection-act-2541::หมวด 3 การใช้แรงงานหญิง > มาตรา 41::b0` |
 | event3 | edited | 0.78 | `th-labour-protection-act-2541::หมวด 2 การใช้แรงงานทั่วไป > มาตรา 34::b0` | `th-labour-protection-act-2541::หมวด 2 การใช้แรงงานทั่วไป > มาตรา 34::b0` |
 | event3 | edited | 0.80 | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b0` | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b0` |
@@ -66,4 +64,25 @@ Pass 2b (any section of the same document) stays at 0.8, so same-section thresho
 | event3 | edited | 0.89 | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 9::b0` | `th-labour-protection-act-2541::หมวด 1 บททั่วไป > มาตรา 9::b0` |
 | event3 | edited | 0.91 | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b1` | `th-labour-protection-act-2541::หมวด 5 ค่าจ้าง ค่าล่วงเวลา ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด > มาตรา 70::b1` |
 | event3 | edited | 0.94 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b0` | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b0` |
-| event3 | edited | 0.94 | `th-labour-protection-act-2541::หมวด 11 ค่าชดเชย > มาตรา 118::b1` | `th-labour-protection-act-2541::หมวด 11 ค่าชดเชย > มาตรา 118::b1` |
+| event3 | edited | 0.95 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 151::b0` | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 151::b0` |
+
+## Cross-document moves by move_similarity_threshold
+(edit_similarity_threshold stays at 0.5)
+
+| event | move threshold | moved | pairs (similarity) |
+|---|---|---|---|
+| event1 | 0.35 | 0 | - |
+| event1 | 0.40 | 0 | - |
+| event1 | 0.45 | 0 | - |
+| event1 | 0.50 | 0 | - |
+| event1 | 0.60 | 0 | - |
+| event2 | 0.35 | 2 | `en-making-a-career::Performance Improvement Plans::b0` → `en-severance::_::b0` (0.44); `en-making-a-career::Performance Improvement Plans::b1` → `en-severance::_::b1` (0.49) |
+| event2 | 0.40 | 2 | `en-making-a-career::Performance Improvement Plans::b0` → `en-severance::_::b0` (0.44); `en-making-a-career::Performance Improvement Plans::b1` → `en-severance::_::b1` (0.49) |
+| event2 | 0.45 | 1 | `en-making-a-career::Performance Improvement Plans::b1` → `en-severance::_::b1` (0.49) |
+| event2 | 0.50 | 0 | - |
+| event2 | 0.60 | 0 | - |
+| event3 | 0.35 | 2 | `th-labour-protection-act-2541::มาตรา 5::b3` → `th-labour-protection-act-amendment-7-2562::มาตรา 11::b1` (0.38); `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b1` → `th-labour-protection-act-amendment-7-2562::มาตรา 23::b1` (0.99) |
+| event3 | 0.40 | 1 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b1` → `th-labour-protection-act-amendment-7-2562::มาตรา 23::b1` (0.99) |
+| event3 | 0.45 | 1 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b1` → `th-labour-protection-act-amendment-7-2562::มาตรา 23::b1` (0.99) |
+| event3 | 0.50 | 1 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b1` → `th-labour-protection-act-amendment-7-2562::มาตรา 23::b1` (0.99) |
+| event3 | 0.60 | 1 | `th-labour-protection-act-2541::หมวด 16 บทกำหนดโทษ > มาตรา 146::b1` → `th-labour-protection-act-amendment-7-2562::มาตรา 23::b1` (0.99) |

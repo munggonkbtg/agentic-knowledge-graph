@@ -25,6 +25,7 @@ from kg.layer0_structure import Normalizer, parse_corpus
 ROOT = Path(__file__).resolve().parents[1]
 T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 THRESHOLDS = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+MOVE_THRESHOLDS = [0.35, 0.40, 0.45, 0.50, 0.60]
 STATUSES = [s for s in MatchStatus]
 
 
@@ -60,6 +61,19 @@ def main() -> None:
         for m in sorted(pairs, key=lambda m: m.similarity)[:15]:
             out.append(f"| {ev} | {m.status.value} | {m.similarity:.2f} | "
                        f"`{m.old.block.block_id}` | `{m.new.block.block_id}` |")
+
+    # Pass 3 has its own threshold: sweep it with the edit threshold as configured.
+    out += ["", "## Cross-document moves by move_similarity_threshold",
+            f"(edit_similarity_threshold stays at {cfg.diff.edit_similarity_threshold})", "",
+            "| event | move threshold | moved | pairs (similarity) |", "|---|---|---|---|"]
+    for ev, uploaded in events.items():
+        for t in MOVE_THRESHOLDS:
+            dcfg = cfg.diff.model_copy(update={"move_similarity_threshold": t})
+            moved = [m for d in diff_event(olds, uploaded, dcfg, norm) for m in d.matches
+                     if m.status == MatchStatus.MOVED]
+            pairs = "; ".join(f"`{m.old.block.block_id}` → `{m.new.block.block_id}` "
+                              f"({m.similarity:.2f})" for m in moved)
+            out.append(f"| {ev} | {t:.2f} | {len(moved)} | {pairs or '-'} |")
     text = "\n".join(out)
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
     (ROOT / "eval" / "results" / "m2_diff_threshold.md").write_text(text, encoding="utf-8")

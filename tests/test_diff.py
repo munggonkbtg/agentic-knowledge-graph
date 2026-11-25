@@ -13,7 +13,7 @@ from kg.layer0_structure import Normalizer, parse_corpus, parse_file
 L0 = Layer0Settings()
 NORM = Normalizer(L0)
 CFG = DiffSettings(edit_similarity_threshold=0.5, cross_section_edit_threshold=0.8,
-                   exact_only_sections=["เชิงอรรถ"])
+                   move_similarity_threshold=0.5)
 
 LOREM_A = "The quick brown fox jumps over the lazy dog near the river bank today."
 LOREM_B = "Completely different sentence about quarterly budgets and spreadsheets."
@@ -189,35 +189,53 @@ def test_agreement_summary_counts_labels():
     assert s["wrong_scores"] == [("2", "edited", "0.6")]
 
 
-def test_exact_only_sections_skip_similarity_passes(tmp_path):
-    fn_old = "[1] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 4) พ.ศ. 2553"
-    fn_new = "[2] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 7) พ.ศ. 2562"
-    same = "[3] มาตรา 5 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 2) พ.ศ. 2551"
-    old = _doc(tmp_path, "a.md", f"## เชิงอรรถ\n\n{fn_old}\n\n{same}\n")
-    new = _doc(tmp_path, "b.md", f"## เชิงอรรถ\n\n{fn_new}\n\n{same}\n")
+FN_OLD = "[1] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 4) พ.ศ. 2553"
+FN_NEW = "[2] มาตรา 146 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 7) พ.ศ. 2562"
+FN_SAME = "[3] มาตรา 5 แก้ไขเพิ่มเติมโดยพระราชบัญญัติคุ้มครองแรงงาน (ฉบับที่ 2) พ.ศ. 2551"
+
+
+def test_footnote_role_blocks_are_matched_by_exact_text_only(tmp_path):
+    old = _doc(tmp_path, "a.md", f"## เชิงอรรถ\n\n{FN_OLD}\n\n{FN_SAME}\n")
+    new = _doc(tmp_path, "b.md", f"## เชิงอรรถ\n\n{FN_NEW}\n\n{FN_SAME}\n")
     exact = diff_versions(old, new, CFG, NORM)
     assert _by_status(exact) == {MatchStatus.UNCHANGED: 1, MatchStatus.REMOVED: 1,
                                  MatchStatus.ADDED: 1}
-    # Without the rule, the two template entries pair up as an "edit".
-    fuzzy = diff_versions(old, new, CFG.model_copy(update={"exact_only_sections": []}), NORM)
-    assert _by_status(fuzzy)[MatchStatus.EDITED] == 1
+
+
+def test_same_text_under_a_body_heading_is_paired_as_edit(tmp_path):
+    # The rule follows the block role, not the text: as body text the two
+    # template entries do pair up as an "edit".
+    old = _doc(tmp_path, "a.md", f"## Notes\n\n{FN_OLD}\n\n{FN_SAME}\n")
+    new = _doc(tmp_path, "b.md", f"## Notes\n\n{FN_NEW}\n\n{FN_SAME}\n")
+    assert _by_status(diff_versions(old, new, CFG, NORM))[MatchStatus.EDITED] == 1
+
+
+def test_move_threshold_is_separate_from_edit_threshold(tmp_path):
+    moved = LOREM_B.replace("quarterly", "yearly").replace("spreadsheets", "reports")
+    old_a = _doc(tmp_path, "a1.md", f"## S\n\n{LOREM_A}\n\n{LOREM_B}\n", "doc-a")
+    new_a = _doc(tmp_path, "a2.md", f"## S\n\n{LOREM_A}\n", "doc-a")
+    new_b = _doc(tmp_path, "b2.md", f"## T\n\n{moved}\n", "doc-b")
+
+    def statuses(edit, move):
+        cfg = CFG.model_copy(update={"edit_similarity_threshold": edit,
+                                     "move_similarity_threshold": move})
+        res = diff_event({"doc-a": old_a}, [new_a, new_b], cfg, NORM)
+        return {d.doc_key: _by_status(d.matches) for d in res}
+
+    # A strict edit threshold no longer blocks a move ...
+    assert statuses(edit=0.99, move=0.5)["doc-b"] == {MatchStatus.MOVED: 1}
+    # ... and a strict move threshold blocks it whatever the edit threshold is.
+    assert statuses(edit=0.1, move=0.99)["doc-b"] == {MatchStatus.ADDED: 1}
 
 
 def test_no_footnote_entry_is_paired_by_similarity(events):
-    cfg = load_config_default().diff
-    assert "เชิงอรรถ" in cfg.exact_only_sections
     for results in events.values():
         for d in results:
             for m in d.matches:
-                ids = (m.old.block.block_id if m.old else "") + (m.new.block.block_id if m.new else "")
-                if "::เชิงอรรถ::" in ids:
+                roles = {pb.block.role.value for pb in (m.old, m.new) if pb is not None}
+                if "footnote" in roles:
                     assert m.status in (MatchStatus.UNCHANGED, MatchStatus.REMOVED,
                                         MatchStatus.ADDED)
-
-
-def load_config_default():
-    from kg.config import load_config
-    return load_config(Path(__file__).resolve().parents[1] / "config.yaml")
 
 
 def test_agreement_excludes_exact_only_rows():
@@ -231,6 +249,10 @@ def test_agreement_excludes_exact_only_rows():
         {**base, "row_id": "1", "new_block_id": "th-x::เชิงอรรถ::b3"},
         {**base, "row_id": "2", "new_block_id": "th-x::หมวด 1 > มาตรา 5::b0"},
     ]
-    s = summarize(rows, ["เชิงอรรถ"])
+    s = summarize(rows, ["เชิงอรรถ"])  # old sheet: no role column, heading fallback
     assert s["excluded"] == 1
     assert s["total"] == {"rows": 1, "labelled": 1, "correct": 0}
+    # New sheets carry a role column, which wins over the heading fallback.
+    with_role = [{**rows[0], "role": "body"}, {**rows[1], "role": "footnote"}]
+    s = summarize(with_role, ["เชิงอรรถ"])
+    assert s["excluded"] == 1 and s["wrong_scores"][0][0] == "1"
