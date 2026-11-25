@@ -1,4 +1,4 @@
-"""Score the diff against the person's blind answers (m2_blind_sample.csv).
+"""Score the diff against blind answers (m2_blind_sample_<source>.csv).
 
 For each answered row, the person's view and the diff's view are reduced to:
 
@@ -12,10 +12,14 @@ For each answered row, the person's view and the diff's view are reduced to:
            is one of the person's refs (or both say removed).
 
 Reported per event and per stratum (text_still_present / text_not_present),
-plus the rows where the two disagree. Counts only (no document text) go to
-eval/results/m2_blind_agreement.md.
+plus the rows where the two disagree. Counts only (no document text).
 
-Run:  uv run python eval/blind_agreement.py
+The answers are read per label source (eval/label_sources.py): _human (a
+person) or _ai (an AI reviewer). Only a person's answers count for "done".
+
+Run:  uv run python eval/blind_agreement.py [--name m2_known] [--labels human|ai|both]
+Writes eval/results/<name>_agreement_<source>.md, and <name>_labels_human_vs_ai.md
+when both sources have answers.
 """
 
 from __future__ import annotations
@@ -138,24 +142,42 @@ def current_diff() -> dict[str, tuple[str, tuple[str, str] | None]]:
     return out
 
 
+ANSWER_COLUMNS = ["answer", "new_refs", "note"]
+
+
 def main() -> None:
     import argparse
+
+    from label_sources import read_rows, sheet, source_agreement, source_line, sources_to_score
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", default="m2_blind",
                     help="m2_blind (random sample) or m2_known (hand-picked known cases)")
-    name = ap.parse_args().name
+    ap.add_argument("--labels", default="both", choices=["human", "ai", "both"],
+                    help="whose answers to score against (both = every source with answers)")
+    args = ap.parse_args()
+    name, stem = args.name, f"{args.name}_sample"
     key = json.loads((LABELS / f"{name}_key.json").read_text(encoding="utf-8"))
-    with (LABELS / f"{name}_sample.csv").open(encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
-    text = render(score(rows, key, current_diff()))
-    if name != "m2_blind":
-        text = text.replace("# M2: diff vs the person's blind answers",
-                            f"# M2: diff vs the person's blind answers — {name} "
-                            "(hand-picked cases, not a random sample)")
+    sources = sources_to_score(args.labels, stem, ANSWER_COLUMNS)
+    if not sources:
+        raise SystemExit(f"no answered rows in any {stem}_<source>.csv")
+    diff = current_diff()
+    kind = "" if name == "m2_blind" else f" — {name} (hand-picked cases, not a random sample)"
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
-    (ROOT / "eval" / "results" / f"{name}_agreement.md").write_text(text, encoding="utf-8")
-    print(text)
+    rows_by = {src: read_rows(sheet(stem, src)) for src in sources}
+    for src, rows in rows_by.items():
+        text = (render(score(rows, key, diff))
+                .replace("# M2: diff vs the person's blind answers",
+                         f"# M2: diff vs blind answers{kind}\n\n"
+                         + source_line(src, rows, ANSWER_COLUMNS))
+                .replace("| row | person | diff |", f"| row | {src} | diff |"))
+        (ROOT / "eval" / "results" / f"{name}_agreement_{src}.md").write_text(text, encoding="utf-8")
+        print(text, "\n")
+    if len(rows_by) == 2:
+        text = f"# {name}: human vs AI labels\n\n" + source_agreement(
+            rows_by["human"], rows_by["ai"], ANSWER_COLUMNS[:2])
+        (ROOT / "eval" / "results" / f"{name}_labels_human_vs_ai.md").write_text(text, encoding="utf-8")
+        print(text)
 
 
 if __name__ == "__main__":

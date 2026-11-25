@@ -28,6 +28,7 @@ from pathlib import Path
 
 from kg.config import load_config
 from kg.layer0_structure import parse_corpus
+from label_sources import refuse_overwrite
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
@@ -48,9 +49,7 @@ def main() -> None:
     args = ap.parse_args()
     cases = args.case or DEFAULT_CASES
     sample, key_path = LABELS / f"{args.name}_sample.csv", LABELS / f"{args.name}_key.json"
-    for p in (sample, key_path):
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold answers); not overwriting")
+    refuse_overwrite([sample, key_path])
     random_key = json.loads((LABELS / "m2_blind_key.json").read_text(encoding="utf-8"))
 
     cfg = load_config(ROOT / "config.yaml")

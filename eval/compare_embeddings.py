@@ -20,9 +20,9 @@ the old block; hit@1 and MRR of the true new block, per language. This checks
 how well a method recognises the same passage after an edit, in Thai and English.
 
 Vectors are cached in data/cache/ (not in git) by content hash and model.
-Writes counts only to eval/results/embedding_comparison.md.
+Writes counts only to eval/results/embedding_comparison_<source>.md.
 
-Run:  uv run --group embed python eval/compare_embeddings.py
+Run:  uv run --group embed python eval/compare_embeddings.py [--labels ai|human]
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ from pathlib import Path
 
 import numpy as np
 
+from label_sources import DESCRIPTION, answered, sheet
 from make_change_test_set import EVENTS, LABELS, ROOT, Char3Index, store_after_events
 
 from kg.config import load_config
@@ -145,10 +146,10 @@ def change_contexts(cfg):
                    "lang": st[ch["document"]].document.language.value}
 
 
-def positives_of(prefix: str) -> dict[str, list[tuple[str, str]]]:
+def positives_of(prefix: str, source: str) -> dict[str, list[tuple[str, str]]]:
     key = json.loads((LABELS / f"{prefix}_key.json").read_text(encoding="utf-8"))
     out: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for r in read(LABELS / f"{prefix}_candidates.csv"):
+    for r in read(sheet(f"{prefix}_candidates", source)):
         if r["needs_review"].strip().lower() != "yes":
             continue
         for cid in [x.strip() for x in r["change_ids"].split(";") if x.strip()]:
@@ -157,15 +158,15 @@ def positives_of(prefix: str) -> dict[str, list[tuple[str, str]]]:
     return out
 
 
-def task_a(cfg, e5: E5) -> dict:
+def task_a(cfg, e5: E5, source: str) -> dict:
     """(change, positive block) pairs found in the top k, per method / kind / language."""
     hits: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     # Labels from every judged sheet: the first pool (m5, m5s) and the extension
     # with e5 and deeper char3 (m5e). Change ids are unique across sheets.
     merged: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for prefix in ("m5", "m5s", "m5e"):
-        if (LABELS / f"{prefix}_candidates.csv").exists():
-            for cid, pos in positives_of(prefix).items():
+        if sheet(f"{prefix}_candidates", source).exists():
+            for cid, pos in positives_of(prefix, source).items():
                 merged[cid] += pos
     positives = {prefix: merged for _, prefix in SETS}
     for ctx in change_contexts(cfg):
@@ -212,22 +213,58 @@ def task_b(cfg, e5: E5) -> dict:
     return out
 
 
+LABEL_COLUMNS = ["needs_revision", "needs_review", "kind", "change_ids"]
+
+def caveats(source: str) -> list[str]:
+    rows = [r for p in ("m5", "m5s", "m5e") if sheet(f"{p}_candidates", source).exists()
+            for r in read(sheet(f"{p}_candidates", source))
+            if r["needs_review"].strip().lower() == "yes"]
+    cites = sum(r["kind"].strip().lower() == "cites" for r in rows)
+    pairs = sum(len([x for x in r["change_ids"].split(";") if x.strip()]) for r in rows)
+    out = ["**Not a general finding.** Read this table with these limits:", "",
+           f"* Most positives are citations: {cites} of the {len(rows)} needs_review rows "
+           "cite the changed section, mostly by number, which favours character matching.",
+           "* The pool came from these methods (plus section-number search, layer 1 and a "
+           "random sample). A block that every pooled method missed was never judged and "
+           "is absent from the table; only hand additions could add such blocks.",
+           f"* The sample is small ({len(rows)} rows, {pairs} change-block pairs), so one "
+           "or two pairs move a cell by several points."]
+    if source == "ai":
+        out.append("* The synthetic edits were written by the same AI reviewer that "
+                   "labelled them, so those labels are not blind.")
+    return out
+
+
 def main() -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--labels", default="ai", choices=["human", "ai"],
+                    help="whose needs_review labels to score against")
+    source = ap.parse_args().labels
+    n_answered = sum(answered(read(sheet(f"{p}_candidates", source)), LABEL_COLUMNS)
+                     for p in ("m5", "m5s", "m5e") if sheet(f"{p}_candidates", source).exists())
+    if not n_answered:
+        raise SystemExit(f"no {source} labels yet in the m5 / m5s / m5e candidate sheets")
     cfg = load_config(ROOT / "config.yaml")
     e5 = E5()
-    a = task_a(cfg, e5)
+    a = task_a(cfg, e5, source)
     b = task_b(cfg, e5)
     out = ["# Embedding comparison (multilingual-e5-large vs char-trigram TF-IDF)", "",
            f"Model load {e5.load_seconds:.0f} s; encoded {e5.encoded} new texts in "
            f"{e5.encode_seconds:.0f} s on CPU (cached texts not counted).", "",
            "## Task A: impact retrieval on the M5 change test set (needs_review)", "",
+           f"**Label source: {source}** ({DESCRIPTION[source]}); {n_answered} answered "
+           "rows over the m5, m5s and m5e sheets. The synthetic edits (m5s) were written "
+           "by an AI reviewer.", "",
            ("Labels: first pool (char3 top 3, section-number search, layer 1, random), "
             "then extended with e5 top 5 and char3 top 5 (m5e), so both methods are "
             "judged to depth 5. @5 compares them fairly; deeper ranks are unjudged for "
             "both, and the first pool's cite / graph sources lean lexical."
-            if (LABELS / "m5e_candidates.csv").exists() else
+            if sheet("m5e_candidates", source).exists() else
             "Labels were pooled without any embedding method: blocks only e5 finds were "
             "never judged, so this table favours char3 (a lower bound for e5)."), "",
+           *caveats(source), "",
            "| group | pairs | " + " | ".join(f"{m} @{k}" for m in ("char3", "e5", "hybrid")
                                             for k in KS) + " |",
            "|---|---|" + "---|" * (3 * len(KS))]
@@ -248,7 +285,8 @@ def main() -> None:
         out.append(f"| {lang} | {int(n)} | " + " | ".join(cells) + " |")
     text = "\n".join(out)
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
-    (ROOT / "eval" / "results" / "embedding_comparison.md").write_text(text, encoding="utf-8")
+    (ROOT / "eval" / "results" / f"embedding_comparison_{source}.md").write_text(
+        text, encoding="utf-8")
     print(text)
 
 

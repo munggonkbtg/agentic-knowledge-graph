@@ -4,9 +4,9 @@ Research prototype: build a knowledge graph over a Markdown document store
 (Thai and English) and use it to find passages that need revision when a
 document is updated. Everything runs locally from the command line.
 
-Status: **M2 (diff)** built, not yet verified. The data set is reset to the
-initial corpus only (no uploads, labels or results yet). Plan, decisions and
-open items: [docs/plan.md](docs/plan.md).
+Status: M0-M1 done; M2 (diff) and M3 (layer 1) built, **not verified**: their
+label sheets were answered by an AI reviewer, and no person has labelled yet.
+Plan, decisions, label provenance and open items: [docs/plan.md](docs/plan.md).
 
 ## 1. One-time setup
 
@@ -65,6 +65,7 @@ uv run kg init-schema
 | `kg upload --event DIR [--as-of DATE]` | Identifies each file (doc_key in front matter, else by text similarity; unsure files go to `data/labels/doc_identification_queue.csv` for a person). Then uploads new versions: diffs each file against its current version in the graph, writes the new version (one transaction per file), reuses the node of every unchanged block, adds `SUPERSEDES`, sets the old version's `valid_to` and updates `Document.title`. Files already uploaded are skipped. |
 | `kg build --layer 1` | REFERENCES for the current version of every document in the graph: regex + document registry, one edge per cited section, stub documents for laws not in the store (rules in `docs/plan.md`). Rerunning changes nothing. |
 | `kg registry` | Lists the names and file names each document can be cited by (add reviewed extra names in `registry/aliases.yaml`) |
+| `kg backup-labels` | Copies `data/labels/` (not in git) to a dated folder outside the repository: `~/kg_label_backups/labels-<date>-<time>`, or `KG_LABEL_BACKUP_DIR`. Every sheet generator in `eval/` does the same before writing. |
 | `kg reset --yes` | Deletes all pipeline nodes (Document, Version, Section, Block, Alias, Entity). Constraints and indexes stay. Cannot be undone. |
 | `kg diff --event DIR [--event DIR ...] [--review-out CSV]` | Matches uploaded files against their previous versions in `data/initial_corpus` (unchanged / edited / moved / removed / added) and optionally writes a review sheet for a person. Writes nothing to Neo4j. |
 
@@ -80,7 +81,11 @@ uv run python eval/diff_threshold.py
 uv run python eval/diff_agreement.py
 ```
 
-Blind check of the diff (the person never sees the diff's answers):
+Blind check of the diff (the person never sees the diff's answers). Answers
+are kept apart by who gave them: `<sheet>_human.csv` (a person) and
+`<sheet>_ai.csv` (an AI reviewer). Only a person's answers count for "done".
+Scoring scripts take `--labels human | ai | both` (default both) and name the
+source in each result file:
 
 ```powershell
 uv run python eval/make_blind_sheet.py
@@ -98,7 +103,8 @@ uv run python eval/make_references_sheet.py
 uv run python eval/references_agreement.py
 ```
 
-For the diff, the first writes `data/labels/m2_blind_sample.csv` (30 old blocks to answer),
+For the diff, the first writes `data/labels/m2_blind_sample.csv` (30 old blocks to answer;
+copy it to `m2_blind_sample_human.csv` before answering),
 `m2_blind_new_blocks.csv` (every block of the uploaded files, with refs) and
 `m2_blind_key.json`. See the docstring of `eval/make_blind_sheet.py` for how
 to fill in `answer` and `new_refs`.

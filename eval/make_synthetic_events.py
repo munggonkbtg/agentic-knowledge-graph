@@ -45,6 +45,7 @@ from make_change_test_set import (  # same pooling as the real events
 from kg.config import load_config
 from kg.diff import MatchStatus, diff_versions
 from kg.layer0_structure import Normalizer, parse_file
+from label_sources import refuse_overwrite
 
 SEED = 20261128
 RANDOM_PER_EDIT = 5
@@ -82,9 +83,7 @@ def write_csv(path: Path, rows: list[dict], cols: list[str]) -> None:
 
 def template() -> None:
     edits, catalogue = LABELS / "m5s_edits.csv", LABELS / "m5s_store_blocks.csv"
-    for p in (edits, catalogue):
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold edits); not overwriting")
+    refuse_overwrite([edits, catalogue])
     cfg = load_config(ROOT / "config.yaml")
     store = store_after_events(cfg)
     rows, refs = [], {}
@@ -108,9 +107,7 @@ def template() -> None:
 
 def build() -> None:
     outputs = [LABELS / n for n in ("m5s_changes.csv", "m5s_candidates.csv", "m5s_key.json")]
-    for p in outputs:
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold labels); not overwriting")
+    refuse_overwrite(outputs)
     cfg = load_config(ROOT / "config.yaml")
     norm = Normalizer(cfg.layer0)
     rng = random.Random(SEED)

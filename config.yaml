@@ -30,7 +30,7 @@ layer0:
 diff:
   # PROVISIONAL (open question): minimum text similarity (0-1, rapidfuzz ratio on
   # normalized text) for an old and a new block in the same section to count as
-  # "edited" rather than "removed + added". To be set from the person's check.
+  # "edited" rather than "removed + added". To be set from a person's blind check.
   edit_similarity_threshold: 0.5
   # Pass 2b: an old and a new block in DIFFERENT sections of the same document
   # count as "edited" (moved within the document and edited) at or above this
@@ -89,9 +89,10 @@ layer1:
 
 embedding:
   # Chosen 2026-11-25 for the M5 hybrid search (keyword + embedding).
-  # Compared with character-trigram TF-IDF on our labels (docs/plan.md): handles
-  # Thai as well (same-passage hit@1 0.95), but finds fewer blocks that need
-  # review (recall@5 0.34 vs 0.51). Needs the `embed` dependency group.
+  # Compared with character-trigram TF-IDF (docs/plan.md): handles Thai as well
+  # (same-passage hit@1 0.95). Against AI labels it found fewer blocks that need
+  # review (recall@5 0.34 vs 0.51), on a small, citation-heavy sample pooled from
+  # these two methods: not a general finding. Needs the `embed` dependency group.
   model: intfloat/multilingual-e5-large
   query_prefix: "query: "      # e5 expects these prefixes
   passage_prefix: "passage: "

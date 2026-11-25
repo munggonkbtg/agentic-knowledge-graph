@@ -1,6 +1,7 @@
-"""Precision and recall of layer 1 REFERENCES against the person's blind labels.
+"""Precision and recall of layer 1 REFERENCES against blind labels.
 
-Reads data/labels/m3_references_sample.csv (the `citations` column) and the key
+Reads data/labels/m3_references_sample_<source>.csv (the `citations` column;
+source human = a person, ai = an AI reviewer, see eval/label_sources.py) and the key
 file, runs layer 1 on the same blocks, and compares per block:
 
 * exact:    (document, cited section) pairs must match
@@ -12,11 +13,12 @@ removed, Thai digits -> Arabic), so "มาตรา ๑๑๘ (๖)" equals "�
 
 Reported overall, per language, per stratum, and precision per layer-1
 resolution (explicit, same_block_context, issued_under, ...). Writes counts and
-row ids only (no document text) to eval/results/m3_references_agreement.md.
+row ids only (no document text) to eval/results/<name>_agreement_<source>.md.
 Targets from the brief: precision >= 0.9, recall >= 0.8.
 
 Run:  uv run python eval/references_agreement.py                         (dev set)
       uv run python eval/references_agreement.py --name m3_references_test (test set)
+      add --labels human | ai | both (default both: every source with labels)
 """
 
 from __future__ import annotations
@@ -181,28 +183,48 @@ def registry_from_corpus() -> Registry:
     return Registry(entries, load_extra_aliases(ROOT / cfg.layer1.aliases_file))
 
 
+ANSWER_COLUMNS = ["citations", "note"]
+
+
 def main() -> None:
     import argparse
+
+    from label_sources import read_rows, sheet, source_agreement, source_line, sources_to_score
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", default="m3_references",
                     help="m3_references (dev set, used to tune the rules) or m3_references_test")
-    name = ap.parse_args().name
+    ap.add_argument("--labels", default="both", choices=["human", "ai", "both"],
+                    help="whose labels to score against (both = every source with labels)")
+    args = ap.parse_args()
+    name, stem = args.name, f"{args.name}_sample"
     key = json.loads((LABELS / f"{name}_key.json").read_text(encoding="utf-8"))
-    with (LABELS / f"{name}_sample.csv").open(encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
+    sources = sources_to_score(args.labels, stem, ANSWER_COLUMNS)
+    if not sources:
+        raise SystemExit(f"no labelled rows in any {stem}_<source>.csv")
     registry = registry_from_corpus()
+    system = system_references(registry)
     from kg.config import load_config
 
     rule_version = load_config(ROOT / "config.yaml").layer1.rule_version
     label = "test set (held out)" if name.endswith("_test") else "dev set (used to tune the rules)"
-    text = (f"<!-- {name}: {label}; layer 1 rule_version {rule_version} -->\n"
-            + render(score(rows, key, registry, system_references(registry)))
-            .replace("# M3: REFERENCES vs the person's blind labels",
-                     f"# M3: REFERENCES vs the person's blind labels — {label}, {rule_version}"))
     (ROOT / "eval" / "results").mkdir(exist_ok=True)
-    (ROOT / "eval" / "results" / f"{name}_agreement.md").write_text(text, encoding="utf-8")
-    print(text)
+    rows_by = {src: read_rows(sheet(stem, src)) for src in sources}
+    for src, rows in rows_by.items():
+        text = (f"<!-- {name}: {label}; layer 1 rule_version {rule_version}; labels {src} -->\n"
+                + render(score(rows, key, registry, system))
+                .replace("# M3: REFERENCES vs the person's blind labels",
+                         f"# M3: REFERENCES vs blind labels — {label}, {rule_version}\n\n"
+                         + source_line(src, rows, ANSWER_COLUMNS))
+                .replace("only the person", f"only the {src} labels")
+                .replace("layer 1 and the person differ", f"layer 1 and the {src} labels differ"))
+        (ROOT / "eval" / "results" / f"{name}_agreement_{src}.md").write_text(text, encoding="utf-8")
+        print(text, "\n")
+    if len(rows_by) == 2:
+        text = f"# {name}: human vs AI labels\n\n" + source_agreement(
+            rows_by["human"], rows_by["ai"], ANSWER_COLUMNS[:1])
+        (ROOT / "eval" / "results" / f"{name}_labels_human_vs_ai.md").write_text(text, encoding="utf-8")
+        print(text)
 
 
 if __name__ == "__main__":

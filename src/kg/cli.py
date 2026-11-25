@@ -389,5 +389,21 @@ def reset(
     typer.secho(f"Deleted {n} nodes.", fg="green")
 
 
+@app.command("backup-labels")
+def backup_labels_cmd(
+    labels: Path = typer.Option(Path("data/labels"), "--labels", help="Folder to back up"),
+) -> None:
+    """Copy data/labels/ to a dated folder outside the repository
+    (KG_LABEL_BACKUP_DIR, default ~/kg_label_backups). Run before regenerating sheets."""
+    from kg.backup import backup_labels
+
+    dest = backup_labels(labels)
+    if dest is None:
+        typer.secho(f"Nothing to back up in {labels}.", fg="yellow")
+        return
+    n = sum(1 for p in dest.rglob("*") if p.is_file())
+    typer.secho(f"Copied {n} files to {dest}", fg="green")
+
+
 if __name__ == "__main__":
     app()

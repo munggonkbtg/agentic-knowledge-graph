@@ -1,4 +1,6 @@
-# M2: diff vs the person's blind answers — m2_known (hand-picked cases, not a random sample)
+# M2: diff vs blind answers — m2_known (hand-picked cases, not a random sample)
+
+**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check); 2 of 2 rows answered.
 
 | event | stratum | answered | status agrees | partner agrees | both |
 |---|---|---|---|---|---|

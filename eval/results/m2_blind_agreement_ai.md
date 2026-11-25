@@ -1,4 +1,6 @@
-# M2: diff vs the person's blind answers
+# M2: diff vs blind answers
+
+**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check); 30 of 30 rows answered.
 
 | event | stratum | answered | status agrees | partner agrees | both |
 |---|---|---|---|---|---|
@@ -13,6 +15,6 @@
 
 ## Disagreements
 
-| row | person | diff | partner agrees |
+| row | ai | diff | partner agrees |
 |---|---|---|---|
 | event1-S03 | same | edited | True |

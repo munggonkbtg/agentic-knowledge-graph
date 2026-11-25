@@ -1,5 +1,7 @@
-<!-- m3_references_test: test set (held out); layer 1 rule_version L1-v3 -->
-# M3: REFERENCES vs the person's blind labels — test set (held out), L1-v3
+<!-- m3_references_test: test set (held out); layer 1 rule_version L1-v3; labels ai -->
+# M3: REFERENCES vs blind labels — test set (held out), L1-v3
+
+**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check); 60 of 60 rows answered.
 
 Targets (brief): precision >= 0.9, recall >= 0.8.
 
@@ -23,9 +25,9 @@ Targets (brief): precision >= 0.9, recall >= 0.8.
 
 Unlabelled rows: 0.
 
-## Rows where layer 1 and the person differ
+## Rows where layer 1 and the ai labels differ
 
-| row | only layer 1 | only the person |
+| row | only layer 1 | only the ai labels |
 |---|---|---|
 | R003 | 0 | 1 |
 | R010 | 1 | 0 |

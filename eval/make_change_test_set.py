@@ -53,6 +53,7 @@ from kg.config import load_config
 from kg.diff import MatchStatus, diff_event
 from kg.layer0_structure import Normalizer, ParsedDocument, parse_corpus
 from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor, compact
+from label_sources import refuse_overwrite
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
@@ -185,9 +186,7 @@ def store_after_events(cfg) -> dict[str, ParsedDocument]:
 def main() -> None:
     outputs = {n: LABELS / f"m5_{n}" for n in ("changes.csv", "candidates.csv",
                                                "store_blocks.csv", "additions.csv", "key.json")}
-    for p in outputs.values():
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold labels); not overwriting")
+    refuse_overwrite(list(outputs.values()))
     cfg = load_config(ROOT / "config.yaml")
     norm = Normalizer(cfg.layer0)
     rng = random.Random(SEED)

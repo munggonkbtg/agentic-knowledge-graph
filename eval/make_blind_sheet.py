@@ -43,6 +43,7 @@ from pathlib import Path
 from kg.config import load_config
 from kg.layer0_structure import parse_corpus
 from kg.models import BlockRole
+from label_sources import refuse_overwrite
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
@@ -73,9 +74,7 @@ def pick(rng: random.Random, same: list, other: list, k: int) -> list[tuple[str,
 
 
 def main() -> None:
-    for p in (SAMPLE, CATALOGUE, KEY):
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold answers); not overwriting")
+    refuse_overwrite([SAMPLE, CATALOGUE, KEY])
     cfg = load_config(ROOT / "config.yaml")
     olds = {d.document.doc_key: d
             for d in parse_corpus(ROOT / "data" / "initial_corpus", cfg.layer0, T0)}

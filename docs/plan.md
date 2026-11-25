@@ -10,11 +10,39 @@ only in commit messages. Measurements are from the pilot set unless stated.
 |---|---|
 | M0 Setup | Done |
 | M1 Layer 0 | Done; extended after review (block role, long-list splitting) |
-| M2 Diff | **Verified 2026-11-25** by a blind check (30 old blocks, 10 per upload event, person never saw the diff): status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the person said same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional) Known case checked separately (blind, hand-picked): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> person: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence |
+| M2 Diff | **Built, not verified.** Scored against the blind sheet (30 old blocks, 10 per upload event), but the answers came from an AI reviewer, not a person (see "Label provenance"). Against those AI labels: status and partner agree on 29/30 (97%), partner 30/30. The one difference is a case-only change ("QueenBee" -> "Queenbee"): the AI labels say same, the diff says edited. Not covered by the sample: the E3 -> E2 severance move and edits across sections (thresholds `move_similarity_threshold`, `cross_section_edit_threshold` stay provisional). Known case checked separately (hand-picked, `m2_known`, label source not confirmed, treated as AI): E3 "Performance Improvement Plans" b0 -> removed (agrees); b1, the severance paragraph -> labels: moved to E2 and **split into 3 blocks**; diff: removed (**missed**). Each E2 block scores 0.40-0.49 against it, the 3 joined 0.76; other removed blocks reach at most 0.44 against 1-3 joined blocks of another document. **Fixed 2026-11-25 (split-aware moves, `diff.split_window = 3`):** pass 3 also compares a removed block with up to 3 consecutive added blocks of another document joined; the severance paragraph is now moved and split into E2 b0-b2 (0.76). Random sample unchanged (29/30); known case 2/2, but that case was used to design the rule, so it is not independent evidence. **To verify:** a person fills `m2_blind_sample_human.csv` blind |
 | Upload (part of M5 steps 8-9) | `kg upload --layer 0` done early, so unchanged blocks keep their nodes |
-| M3 Layer 1 | **Done 2026-11-25** (started before M2 was verified, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test: precision 0.94, recall 0.94 |
-| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv); (2) synthetic edits written by the person (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the person (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates (m5s_candidates.csv), to be labelled **Synthetic labelled (179):** needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the person found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total:** needs_review 41 (states 9, cites 29, depends 3) over 13 real + synthetic events with positives. Weak spot: "depends" has only 3 examples, and no embedding method was in the pool, so blocks that depend on a fact without sharing words may be missing; when embeddings exist, pool their top results too and judge them blind |
+| M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
+| M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (m5 + m5s + m5e, recounted 2026-11-25): needs_review **46 rows** (states 13, cites 29, depends 4) = **53 change-block pairs** (states 13, cites 33, depends 7), because one block can depend on several change items; no pair is counted twice across the three sheets. No additions file holds rows (`m5_additions.csv` is empty; there is no `m5s_additions.csv`), so hand-added blocks are not in these totals. Weak spot: "depends" has only 4 rows / 7 pairs |
 | M4-M7 | Not started |
+
+## Label provenance (corrected 2026-11-25)
+
+Earlier versions of this plan said the sheets below were labelled by a person.
+They were not: the answers came from an AI reviewer, and the 15 synthetic edits
+(`m5s_edits.csv`) were written by that reviewer, so its labels on them are not
+blind. Only a person's blind answers count for a milestone's "done" check, so
+M2 and M3 are **built, not verified**.
+
+| Sheet | Label source |
+|---|---|
+| `m2_blind_sample` | AI reviewer |
+| `m2_known_sample` | not confirmed; treated as AI until confirmed |
+| `m3_references_sample` (dev), `m3_references_test_sample` | AI reviewer |
+| `m5_candidates`, `m5s_candidates`, `m5e_candidates` | AI reviewer (synthetic edits written by it too) |
+
+Since then, answers are kept apart by source (`eval/label_sources.py`): a
+generator writes a blank sheet `<stem>.csv`; answers live in
+`<stem>_ai.csv` and `<stem>_human.csv` (blank, same rows, for a person). Every
+scoring script takes `--labels human | ai | both`, names the source at the top
+of each result file (`eval/results/<name>_agreement_<source>.md`), and with
+both sources writes their agreement (`<name>_labels_human_vs_ai.md`, exact
+agreement and Cohen's kappa per column).
+
+`data/labels/` is not in git. `uv run kg backup-labels` copies it to
+`~/kg_label_backups/labels-<date>-<time>` (or `KG_LABEL_BACKUP_DIR`); every
+sheet generator runs the same backup before writing and refuses to overwrite a
+sheet or its `_ai` / `_human` copies.
 
 ## Decisions so far
 
@@ -25,8 +53,8 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | Text normalization | NFC, whitespace, footnote markers removed, Thai digits -> Arabic, before hashing | Unchanged T1 text 91% with, 54% without |
 | Footnote lists | `role = footnote`; matched by identical text only | Entries are template text; similarity paired unrelated entries |
 | Long lists | Split into items above 1,500 characters | Blocks > 1,500 chars: 16 -> 11. One T1 มาตรา 5 item is still 3,170 chars (source merged definitions into one line) |
-| Diff thresholds | edit 0.5 **supported by the blind check** (person confirmed edits at similarity 0.50, 0.53, 0.58; no false edits); cross-section 0.8 and move 0.5 **still provisional** (no such case in the sample) | Character similarity of unrelated English paragraphs is already 0.41-0.44; set from blind labels |
-| Labels | Only a person's `verdict` / blind answers count; AI suggestions kept in a separate column | v2 labels were written by an AI |
+| Diff thresholds | edit 0.5 **consistent with the AI labels** (they confirm edits at similarity 0.50, 0.53, 0.58; no false edits), not yet with a person's; cross-section 0.8 and move 0.5 **still provisional** (no such case in the sample) | Character similarity of unrelated English paragraphs is already 0.41-0.44; set from blind labels |
+| Labels | Only a person's blind answers count; AI answers kept in separate files (`_ai.csv`) and reported apart | v2 labels and the M2 / M3 / M5 sheets were answered by an AI |
 
 ## M3: document identification + Layer 1 (`REFERENCES`)
 
@@ -126,8 +154,8 @@ Known limits: a range "มาตรา 118 ถึงมาตรา 122" gives e
 only; stubs are not merged with a real document uploaded later under another
 key; a law named without its year that is not in the store is not detected.
 
-**Dev set** (77 blocks, `data/labels/m3_references_*`, labelled blind by the
-person, then **used to tune the rules**, so its later numbers are optimistic):
+**Dev set** (77 blocks, `data/labels/m3_references_*`, labelled by an AI
+reviewer, then **used to tune the rules**, so its later numbers are optimistic):
 
 | rule_version | precision | recall | change |
 |---|---|---|---|
@@ -144,10 +172,11 @@ consolidated text (R036, R065 in the dev set) need the LLM step.
 (`data/labels/m3_references_test_*`). M3's precision / recall is reported on
 this set only.
 
-**Test set result (L1-v3, labelled blind by the person, rules not changed
+**Test set result (L1-v3, labelled by an AI reviewer, rules not changed
 after it):** precision **0.94**, recall **0.94** (124 citations by layer 1,
-124 by the person, 117 shared); document-level precision / recall 0.87.
-Targets met (>= 0.9 / >= 0.8). By resolution: issued_under 25/25,
+124 in the AI labels, 117 shared); document-level precision / recall 0.87.
+Targets met against the AI labels (>= 0.9 / >= 0.8); not yet checked against
+a person. By resolution: issued_under 25/25,
 self_document 59/60, explicit 33/36, name_without_year 0/3.
 
 Remaining errors on the test set (for a later rule version, which would then
@@ -162,21 +191,24 @@ need a fresh test sample):
   a department manual (R042), an amending-act note naming this act as a whole
   (R035).
 - Labelling convention: an act named after a list of its sections got an
-  extra document-level edge the person did not count (R010).
+  extra document-level edge the labels did not count (R010).
 
-Limits of this measurement: one labeller (no agreement figure yet), 50 Thai
-blocks; the test set has no English blocks with links (all 17 were used in the
-dev set, where links scored 1.00, and link rules did not change).
+Limits of this measurement: AI labels only, no person yet (so no agreement
+figure); 50 Thai blocks; the test set has no English blocks with links (all 17
+were used in the dev set, where links scored 1.00, and link rules did not
+change).
 
-Earlier note: a person fills the blind sheet
-(`eval/make_references_sheet.py` -> `data/labels/m3_references_sample.csv`, 77 blocks),
-then `eval/references_agreement.py` gives precision and recall against it.
+To verify: a person fills `data/labels/m3_references_test_sample_human.csv`
+blind, then `uv run python eval/references_agreement.py --name
+m3_references_test --labels both` scores layer 1 against each source and
+reports how far the person and the AI agree.
 
 ## Embedding model (M4 / M5), first comparison 2026-11-25
 
 Approved download: intfloat/multilingual-e5-large only (2.24 GB, MIT); CPU-only
 PyTorch in the `embed` dependency group. `eval/compare_embeddings.py`, results
-in `eval/results/embedding_comparison.md`:
+in `eval/results/embedding_comparison_ai.md` (Task A scored against the **AI
+labels**; `--labels human` once a person has labelled):
 
 - Task B, same passage after an edit (no labels needed): hit@1 Thai 0.95 for
   both char3 and e5, English char3 1.00 / e5 0.95. e5 handles Thai as well as
@@ -198,26 +230,49 @@ synthetic), 3 from char3 ranks 4-5 and 2 from e5 only; 2 needs_revision yes.
 recall@5 char3 0.51, e5 0.34, hybrid 0.36; recall@10 char3 0.58, e5 0.45,
 hybrid 0.57. By kind @10: states char3 0.92 / e5 0.77 / hybrid 0.85; cites
 0.36 / 0.33 / 0.39; depends (7 pairs) 1.00 / 0.43 / 0.86. Thai @10 0.54 /
-0.41 / 0.49. On this corpus e5 does not beat the lexical method for finding
-blocks that need review, and fusing it in does not help at @5 (most positives
-cite section numbers or repeat the exact fact, which lexical matching finds).
-e5 is still fine for Thai text itself (Task B). The first-pool results are kept
-in `eval/results/embedding_comparison_first_pool.md`.
+0.41 / 0.49. On these labels e5 does not beat the lexical method for finding
+blocks that need review, and fusing it in does not help at @5. e5 is still fine
+for Thai text itself (Task B). The first-pool results are kept in
+`eval/results/embedding_comparison_first_pool_ai.md`.
+
+**Not a general finding yet** (corrected 2026-11-25). Limits:
+- 29 of the 46 needs_review rows are citations with matching section numbers,
+  which favours character matching.
+- The candidate pool came from these two methods (plus section-number search,
+  layer 1 and random). Blocks that every pooled method missed were never judged
+  and are absent; the brief mentions 10 blocks the reviewer added by hand, but
+  no additions file with rows is in `data/labels/`, so they are not in this
+  result.
+- 46 rows (53 pairs) is a small sample; one pair moves a cell by about 2
+  points overall and by up to 14 points for depends.
+- The labels are an AI reviewer's, and for the synthetic edits (38 of 53
+  pairs) the same reviewer wrote the edits.
 
 **Decided 2026-11-25:** the M5 hybrid search uses intfloat/multilingual-e5-large
-(`embedding` section in config.yaml), with the result above reported as a
-finding: on this corpus the embedding adds little over lexical matching. Only
-e5-large was tested; other models were not.
+(`embedding` section in config.yaml). Reported as an observation on this pilot
+with the limits above, not as a finding about embeddings. Only e5-large was
+tested; other models were not.
 
 ## Open items carried forward
 
 | Item | Where it belongs |
 |---|---|
-| Splits and merges: **done for moves to another document** (split_window = 3). Still one-to-one: splits / merges inside one document (E1 sick time, T1 มาตรา 5 and 118). Evidence for the move rule is thin (1 real split move, 2 non-moves on the pilot) | Check on more upload events; extend to splits inside a document if they matter for impact |
+| Splits and merges: **done for moves to another document** (split_window = 3). Still one-to-one: blocks that split or merge inside one document cannot be expressed (E1 sick time; T1 มาตรา 5, 118; มาตรา 120, 124/1 from the second review, not re-checked); the E3 -> E2 severance move needed the split window and is the only real case. Evidence for the move rule is thin (1 real split move, 2 non-moves on the pilot) | Check on more upload events; extend to splits inside a document if they matter for impact |
+| Amending act quoted as a move: T2 quotes the new wording of T1, and pass 3 takes T1 มาตรา 146 (3) as moved to T2 (change C32) | Diff: do not pair an act's block with a quotation inside an amending act; or mark amending acts |
+| Footnote lines are template text ("มาตรา X แก้ไขเพิ่มเติมโดย …") and get paired across different sections (reported by the second review; not re-checked: of 66 footnote pairs in events 1-3, 59 changed position, which the identical-text rule allows and does not by itself show a wrong pair) | Check the pairs; if wrong, pair footnotes only within the same cited section |
+| Change list: C32 (the T2 quotation above, new text differs only by a stray quote mark) and C38 (part of the T1 มาตรา 5 definitions, "removed" because the list was cut at a different point) in `m5_changes.csv` are diff artefacts, not real changes | Report M5 with and without them |
+| T1 contains C1 control characters `\x93` / `\x94` (smart quotes decoded with the wrong code page) around defined terms; 11 blocks of the initial corpus have them, and normalization keeps them, so they reach hashes | Layer 0 normalization: map them to quotes (changes hashes, so with a rebuild) |
+| Real changes have almost no cross-document dependents in this pilot: 1 needs_revision block out of 141 candidates for events 1-3. The synthetic edits compensate, but they were written by the AI reviewer that labelled them | Real edits from a person, or a second corpus, before M5 conclusions |
+| Candidate pools miss true dependents: for XS13 the two T5 ข้อ 16 blocks that state "สามสิบวัน" were not in the first pool although they repeat the changed number (found only by the e5 / deeper char3 extension) | M5 recall is an upper bound for what the pool covers; keep an additions step |
+| Historical text: T2 and the reason notes appended to T1 restate old wording; labelled "needs review, no revision" | **User decision:** whether they count as needs_review (labelling guide) |
+| Section numbers are not unique across laws: T5 cites มาตรา ๓๔ of the Home Workers Act; matching on the number alone links it to the Labour Protection Act | Layer 1 / M5 section search: require the law name when the cited act is not the block's own |
+| Additions: `m5_additions.csv` is empty and there is no `m5s_additions.csv`; the brief mentions hand-added blocks (x-S007 for XS04, x-S097 for XS14) that are not in any sheet here | Put the file in `data/labels/` if it exists elsewhere |
+| `m2_known_sample` label source not confirmed (treated as AI) | User to confirm |
 | Diff results are not stored in the graph (old -> new block for edits) | M5, impact analysis needs them |
 | Edges on the node of an edited block are not moved or closed yet | M5 light / full update |
 | `valid_to IS NULL` cannot use a Neo4j range index | M5, when queries filter on validity |
 | `DEPENDS` evidence needs a quote from each block (one field today) | M7 |
 | Thai full-text analyzer exists (`thai`); quality not checked against PyThaiNLP | M5 hybrid search |
 | Full review sheet (deleted with the data reset) | Rebuild after the blind answers, so it cannot anchor them |
-| Entity types, embedding model, LLM, `DEPENDS` labelling guide | Raised when the milestone starts (brief section 12) |
+| Entity types, LLM, hub cut-off, `MENTIONS` and `DEPENDS` labelling guides | M4 (continuation brief); LLM, hub cut-off and guides are the user's decisions |
+| No person has labelled any sheet yet | Before any milestone is marked done |

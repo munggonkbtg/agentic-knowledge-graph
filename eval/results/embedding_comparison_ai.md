@@ -1,10 +1,19 @@
 # Embedding comparison (multilingual-e5-large vs char-trigram TF-IDF)
 
-Model load 7 s; encoded 0 new texts in 0 s on CPU (cached texts not counted).
+Model load 10 s; encoded 0 new texts in 0 s on CPU (cached texts not counted).
 
 ## Task A: impact retrieval on the M5 change test set (needs_review)
 
+**Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check); 448 answered rows over the m5, m5s and m5e sheets. The synthetic edits (m5s) were written by an AI reviewer.
+
 Labels: first pool (char3 top 3, section-number search, layer 1, random), then extended with e5 top 5 and char3 top 5 (m5e), so both methods are judged to depth 5. @5 compares them fairly; deeper ranks are unjudged for both, and the first pool's cite / graph sources lean lexical.
+
+**Not a general finding.** Read this table with these limits:
+
+* Most positives are citations: 29 of the 46 needs_review rows cite the changed section, mostly by number, which favours character matching.
+* The pool came from these methods (plus section-number search, layer 1 and a random sample). A block that every pooled method missed was never judged and is absent from the table; only hand additions could add such blocks.
+* The sample is small (46 rows, 53 change-block pairs), so one or two pairs move a cell by several points.
+* The synthetic edits were written by the same AI reviewer that labelled them, so those labels are not blind.
 
 | group | pairs | char3 @5 | char3 @10 | char3 @20 | e5 @5 | e5 @10 | e5 @20 | hybrid @5 | hybrid @10 | hybrid @20 |
 |---|---|---|---|---|---|---|---|---|---|---|

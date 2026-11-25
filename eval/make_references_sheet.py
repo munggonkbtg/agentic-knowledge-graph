@@ -43,6 +43,7 @@ from pathlib import Path
 from kg.config import load_config
 from kg.layer0_structure import parse_corpus
 from kg.models import BlockRole
+from label_sources import refuse_overwrite
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
@@ -76,9 +77,7 @@ def main() -> None:
     excluded = set()
     for k in args.exclude:
         excluded |= {r["block_uid"] for r in json.loads(k.read_text(encoding="utf-8"))["rows"].values()}
-    for p in (SAMPLE, DOCS, KEY):
-        if p.exists():
-            raise SystemExit(f"{p} exists (it may hold labels); not overwriting")
+    refuse_overwrite([SAMPLE, DOCS, KEY])
     cfg = load_config(ROOT / "config.yaml")
     docs = parse_corpus(ROOT / "data" / "initial_corpus", cfg.layer0, T0)
     rng = random.Random(SEED)

@@ -35,6 +35,7 @@ from compare_embeddings import E5, LABELS, ROOT, change_contexts, read
 from make_change_test_set import Char3Index
 
 from kg.config import load_config
+from label_sources import refuse_overwrite
 
 SEED = 20261129
 COLUMNS = ["row_id", "event", "file", "lines", "section", "block_text",
@@ -43,10 +44,11 @@ COLUMNS = ["row_id", "event", "file", "lines", "section", "block_text",
 
 def judged_by_event() -> dict[str, set[str]]:
     out: dict[str, set[str]] = defaultdict(set)
+    # Rows come from the key (the same rows as every label source's copy of the sheet).
     for prefix in ("m5", "m5s"):
         key = json.loads((LABELS / f"{prefix}_key.json").read_text(encoding="utf-8"))
-        for r in read(LABELS / f"{prefix}_candidates.csv"):
-            out[r["event"]].add(key["candidates"][r["row_id"]]["block_uid"])
+        for rid, info in key["candidates"].items():
+            out[rid.rsplit("-", 1)[0]].add(info["block_uid"])
     return out
 
 
@@ -73,9 +75,7 @@ def main() -> None:
     args = ap.parse_args()
     sheet, key_path = LABELS / "m5e_candidates.csv", LABELS / "m5e_key.json"
     if not args.dry_run:
-        for p in (sheet, key_path):
-            if p.exists():
-                raise SystemExit(f"{p} exists (it may hold labels); not overwriting")
+        refuse_overwrite([sheet, key_path])
     cfg = load_config(ROOT / "config.yaml")
     e5 = E5()
     judged = judged_by_event()

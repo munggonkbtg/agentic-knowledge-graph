@@ -4,6 +4,8 @@ Model load 8 s; encoded 0 new texts in 0 s on CPU (cached texts not counted).
 
 ## Task A: impact retrieval on the M5 change test set (needs_review)
 
+**Label source: ai** (an AI reviewer, not a person). Kept for the record: the first pool, before the e5 extension (m5e). Not a general finding; see embedding_comparison_ai.md for the caveats.
+
 Labels were pooled without any embedding method: blocks only e5 finds were never judged, so this table favours char3 (a lower bound for e5).
 
 | group | pairs | char3 @5 | char3 @10 | char3 @20 | e5 @5 | e5 @10 | e5 @20 | hybrid @5 | hybrid @10 | hybrid @20 |
