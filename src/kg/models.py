@@ -10,13 +10,16 @@ Identity keys (decided in the M0/M1 plan):
 * ``Section.section_id`` – ``version_id::H2 > H3``: sections belong to one version.
 * ``Block.block_id``     – ``doc_key::H2 > H3::b<position>``: *where* the block is.
   " > " separates headings because Thai section numbers contain "/" (มาตรา ๑๑/๑).
-* ``Block.block_uid``    – ``block_id#<short content hash>``: the node key. The same
-  position with the same text reuses its node in a new version; edited text gets a
-  new node, and the diff (M2) links it to the old one.
+* ``Block.block_uid``    – the node key. A block first seen gets
+  ``block_id#<short content hash>``. When a later version is uploaded, every block
+  the diff marks *unchanged* keeps the node (and key) it matched, even if its
+  position moved; edited, added and moved blocks get new nodes. So the key says
+  where a block was when it was first seen, not where it is now.
 
-Because one Block node can appear in several versions, its line range and order are
-stored on the Section-[:CONTAINS]->Block relationship (one per version), not on the
-node. The ``Block`` model below still carries them for the version being parsed.
+Because one Block node can appear in several versions, its position in each
+version (block_id, line range, order) is stored on the Section-[:CONTAINS]->Block
+relationship, not on the node. The ``Block`` model below carries them for the
+version being parsed or loaded.
 """
 
 from __future__ import annotations
@@ -157,11 +160,17 @@ class Block(_Model):
     order: int = Field(ge=0)  # position within its section
     footnotes: tuple[str, ...] = ()  # footnote markers removed before hashing
     embedding: tuple[float, ...] | None = None  # filled later (model not chosen yet)
+    # Node key. A new block gets block_id#hash. A block the diff finds unchanged in
+    # a later version keeps the key of the node it matched, wherever it now sits.
+    block_uid: str = ""
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def block_uid(self) -> str:
-        return f"{self.block_id}#{self.content_hash[:HASH_PREFIX_LEN]}"
+    @model_validator(mode="before")
+    @classmethod
+    def _default_uid(cls, data: Any) -> Any:
+        if isinstance(data, dict) and not data.get("block_uid"):
+            data = {**data, "block_uid":
+                    f"{data['block_id']}#{str(data['content_hash'])[:HASH_PREFIX_LEN]}"}
+        return data
 
 
 class Alias(_Model):

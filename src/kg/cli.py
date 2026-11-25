@@ -204,5 +204,72 @@ def diff(
         typer.echo(VERDICT_HELP)
 
 
+@app.command()
+def upload(
+    event: Path = typer.Option(..., "--event", help="Folder with the files of one upload."),
+    layer: int = typer.Option(0, "--layer", help="Layers to run on the new version (0 only)."),
+    as_of: datetime | None = typer.Option(
+        None, "--as-of", help="When the upload happens (valid_from of the new versions)."),
+    config: Path = ConfigOption,
+) -> None:
+    """Upload new document versions: diff each file against its current version in the
+    graph, then write the new version, reusing the node of every unchanged block."""
+    if layer != 0:
+        typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
+        raise typer.Exit(2)
+    cfg = load_config(config)
+    norm = Normalizer(cfg.layer0)
+    try:
+        uploaded = parse_corpus(event, cfg.layer0, _as_of(as_of))
+    except ParseError as e:
+        typer.secho(str(e), fg="red", err=True)
+        raise typer.Exit(1) from None
+    try:
+        with _open_store(config) as store:
+            todo = []
+            for doc in uploaded:
+                if store.version_exists(doc.version.version_id):
+                    typer.echo(f"  {doc.version.source_file}: already uploaded, skipped")
+                else:
+                    todo.append(doc)
+            olds = {}
+            for doc in todo:
+                old = store.load_current_version(doc.document.doc_key)
+                if old is not None:
+                    olds[doc.document.doc_key] = old
+            for d in diff_event(olds, todo, cfg.diff, norm):
+                counts = Counter(m.status.value for m in d.matches)
+                written = store.write_upload(d)  # one transaction per document
+                label = "new document" if d.old is None else f"supersedes {d.old.version.version_id}"
+                typer.echo(f"  {d.new.version.source_file}: {label}")
+                typer.echo(f"      diff {dict(counts)}")
+                typer.echo(f"      nodes reused {written['reused_nodes']}, "
+                           f"new {written['new_nodes']}")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"Uploaded {len(todo)} of {len(uploaded)} files.", fg="green")
+
+
+@app.command()
+def reset(
+    yes: bool = typer.Option(False, "--yes", help="Confirm deleting all pipeline data."),
+    config: Path = ConfigOption,
+) -> None:
+    """Delete every Document, Version, Section, Block, Alias and Entity node and their
+    relationships. Constraints and indexes stay. Cannot be undone."""
+    if not yes:
+        typer.secho("This deletes all pipeline data in the database. Rerun with --yes.",
+                    fg="yellow", err=True)
+        raise typer.Exit(1)
+    try:
+        with _open_store(config) as store:
+            n = store.reset_pipeline_data()
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"Deleted {n} nodes.", fg="green")
+
+
 if __name__ == "__main__":
     app()

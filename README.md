@@ -61,6 +61,8 @@ uv run kg init-schema
 | `kg build --layer 0 [--corpus DIR] [--as-of DATE]` | Parses every `.md` file in DIR (default `data/initial_corpus`) and writes Document → Version → Section → Block with `HAS_VERSION`, `CONTAINS`, `NEXT`. One transaction per file; rerunning changes nothing. |
 | `kg stats` | Sections, blocks and `NEXT` edges per version, plus total counts |
 | `kg show-blocks FILE` | Parses one file and prints each block's ID, lines and kind (writes nothing) |
+| `kg upload --event DIR [--as-of DATE]` | Uploads new versions: diffs each file against its current version in the graph, writes the new version (one transaction per file), reuses the node of every unchanged block, adds `SUPERSEDES`, sets the old version's `valid_to` and updates `Document.title`. Files already uploaded are skipped. |
+| `kg reset --yes` | Deletes all pipeline nodes (Document, Version, Section, Block, Alias, Entity). Constraints and indexes stay. Cannot be undone. |
 | `kg diff --event DIR [--event DIR ...] [--review-out CSV]` | Matches uploaded files against their previous versions in `data/initial_corpus` (unchanged / edited / moved / removed / added) and optionally writes a review sheet for a person. Writes nothing to Neo4j. |
 
 Evaluation scripts live in `eval/` and write counts (no document text) to `eval/results/`:

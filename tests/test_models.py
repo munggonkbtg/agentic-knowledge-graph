@@ -81,3 +81,10 @@ def test_edge_validity_order():
 def test_confidence_bounds():
     with pytest.raises(ValidationError):
         Provenance(method=Method.REGEX, confidence=1.5)
+
+
+def test_block_uid_defaults_to_position_and_hash_but_can_be_given():
+    common = dict(doc_key="d", block_id="d::S::b0", kind=BlockKind.PARAGRAPH, text="x",
+                  content_hash="ab" * 32, lines=LineRange(start=1, end=1), order=0)
+    assert Block(**common).block_uid == "d::S::b0#" + "ab" * 6
+    assert Block(**common, block_uid="d::Old::b3#keep").block_uid == "d::Old::b3#keep"

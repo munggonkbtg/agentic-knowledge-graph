@@ -9,8 +9,22 @@ from types import TracebackType
 from neo4j import Driver, GraphDatabase, ManagedTransaction
 
 from kg.config import Neo4jCredentials
-from kg.layer0_structure import ParsedDocument
-from kg.models import EdgeType, Method
+from kg.diff import DocumentDiff, MatchStatus
+from kg.layer0_structure import ParsedBlock, ParsedDocument, ParsedSection
+from kg.models import (
+    Block,
+    BlockKind,
+    BlockRole,
+    Document,
+    EdgeType,
+    Language,
+    LineRange,
+    Method,
+    Section,
+    Version,
+)
+
+PIPELINE_LABELS = ("Document", "Version", "Section", "Block", "Alias", "Entity")
 
 SMOKE_LABEL = "KgSmokeTest"
 
@@ -173,6 +187,127 @@ class Store:
             ).records
         ]
 
+    # -- uploads (pipeline steps 8-9, layer 0 only) ----------------------
+
+    def version_exists(self, version_id: str) -> bool:
+        rec = self._run("MATCH (v:Version {version_id: $vid}) RETURN count(v) AS n",
+                        vid=version_id).records[0]
+        return rec["n"] > 0
+
+    def load_current_version(self, doc_key: str) -> ParsedDocument | None:
+        """Rebuild the current version of a document (valid_to is null) from the graph,
+        so the diff can compare an upload with what is stored. None if unknown."""
+        heads = self._run(
+            """
+            MATCH (d:Document {doc_key: $k})-[:HAS_VERSION]->(v:Version)
+            WHERE v.valid_to IS NULL
+            RETURN d {.*} AS d, v {.*} AS v
+            """,
+            k=doc_key,
+        ).records
+        if not heads:
+            return None
+        if len(heads) > 1:
+            raise RuntimeError(f"{doc_key} has {len(heads)} current versions; expected 1")
+        d, v = heads[0]["d"], heads[0]["v"]
+        version = Version(
+            doc_key=doc_key, file_hash=v["file_hash"], version_label=v["version_label"],
+            source_file=v["source_file"], source_url=v.get("source_url"),
+            license=v.get("license"), valid_from=_native(v["valid_from"]),
+        )
+        vid = v["version_id"]
+        sections = []
+        for r in self._run(
+            """
+            MATCH (v:Version {version_id: $vid})-[:CONTAINS*1..]->(s:Section)
+            MATCH (parent)-[:CONTAINS]->(s)
+            RETURN s {.*} AS s,
+                   CASE WHEN parent:Section THEN parent.section_id END AS parent_id
+            ORDER BY s.level = 0 DESC, s.line_start, s.level
+            """,
+            vid=vid,
+        ).records:
+            s = r["s"]
+            section = Section(version_id=vid, heading_path=tuple(s["heading_path"]),
+                              level=s["level"], title=s["title"],
+                              lines=LineRange(start=s["line_start"], end=s["line_end"]))
+            sections.append(ParsedSection(section, r["parent_id"]))
+        blocks = []
+        for r in self._run(
+            """
+            MATCH (v:Version {version_id: $vid})-[:CONTAINS*1..]->(s:Section)
+                  -[c:CONTAINS]->(b:Block)
+            RETURN b {.*} AS b, s.section_id AS sid, c.line_start AS ls, c.line_end AS le,
+                   c.order AS ord, coalesce(c.block_id, b.block_id) AS bid
+            ORDER BY ls
+            """,
+            vid=vid,
+        ).records:
+            b = r["b"]
+            block = Block(
+                doc_key=doc_key, block_id=r["bid"], block_uid=b["block_uid"],
+                kind=BlockKind(b["kind"]), role=BlockRole(b.get("role", "body")),
+                text=b["text"], content_hash=b["content_hash"],
+                lines=LineRange(start=r["ls"], end=r["le"]), order=r["ord"],
+                footnotes=tuple(b.get("footnotes") or ()),
+            )
+            blocks.append(ParsedBlock(block, r["sid"]))
+        document = Document(doc_key=doc_key, title=d["title"], language=Language(d["language"]))
+        return ParsedDocument(document, version, tuple(sections), tuple(blocks))
+
+    def write_upload(self, diff: DocumentDiff) -> dict[str, int]:
+        """Write the new version of one document in a single transaction.
+
+        * Blocks the diff marks unchanged keep the node they matched, so edges on
+          that node (layers 1-4) stay attached and need no re-extraction.
+        * Edited, added and moved blocks get new nodes.
+        * new Version -[:SUPERSEDES]-> previous Version; the previous Version gets
+          valid_to = the new version's valid_from; Document.title takes the new title.
+        """
+        reuse = {m.new.block.block_uid: m.old.block.block_uid for m in diff.matches
+                 if m.status == MatchStatus.UNCHANGED}
+        new_blocks = tuple(
+            ParsedBlock(pb.block.model_copy(update={"block_uid": reuse.get(
+                pb.block.block_uid, pb.block.block_uid)}), pb.section_id)
+            for pb in diff.new.blocks
+        )
+        uids = [pb.block.block_uid for pb in new_blocks]
+        if len(uids) != len(set(uids)):
+            raise RuntimeError(f"{diff.doc_key}: two blocks would share one node")
+        doc = ParsedDocument(diff.new.document, diff.new.version, diff.new.sections, new_blocks)
+        payload = _layer0_payload(doc)
+        payload["old_vid"] = diff.old.version.version_id if diff.old else None
+        with self._driver.session(database=self._database) as session:
+            session.execute_write(_write_upload_tx, payload)
+        return {"blocks": len(new_blocks), "reused_nodes": len(reuse),
+                "new_nodes": len(new_blocks) - len(reuse)}
+
+    def delete_documents(self, doc_key_prefix: str) -> int:
+        """Delete documents whose doc_key starts with the prefix, with their versions,
+        sections and blocks (used by tests to clean up after themselves)."""
+        if not doc_key_prefix:
+            raise ValueError("refusing to delete with an empty prefix")
+        rec = self._run(
+            """
+            MATCH (d:Document) WHERE d.doc_key STARTS WITH $p
+            OPTIONAL MATCH (d)-[:HAS_VERSION]->(v:Version)
+            OPTIONAL MATCH (v)-[:CONTAINS*1..]->(x)
+            WITH collect(DISTINCT d) + collect(DISTINCT v) + collect(DISTINCT x) AS nodes
+            UNWIND nodes AS n
+            WITH DISTINCT n
+            DETACH DELETE n
+            RETURN count(n) AS n
+            """,
+            p=doc_key_prefix,
+        ).records
+        return rec[0]["n"] if rec else 0
+
+    def reset_pipeline_data(self) -> int:
+        """Delete every node the pipeline created (constraints and indexes stay)."""
+        labels = " OR ".join(f"n:{label}" for label in PIPELINE_LABELS)
+        rec = self._run(f"MATCH (n) WHERE {labels} DETACH DELETE n RETURN count(n) AS n")
+        return rec.records[0]["n"]
+
     def fulltext_analyzers(self) -> list[str]:
         records = self._run(
             "CALL db.index.fulltext.listAvailableAnalyzers() YIELD analyzer "
@@ -186,11 +321,12 @@ class Store:
 # Layout written by layer 0:
 #   (Document)-[:HAS_VERSION]->(Version)-[:CONTAINS]->(root Section)
 #   (Section)-[:CONTAINS]->(child Section)        one per heading
-#   (Section)-[:CONTAINS {line_start, line_end, order, version_id}]->(Block)
+#   (Section)-[:CONTAINS {block_id, line_start, line_end, order, version_id}]->(Block)
 #   (Block)-[:NEXT {version_id}]->(Block)          document order within a version
 #
-# Line range and order live on the Section->Block CONTAINS edge because one Block
-# node can be shared by several versions (same position, same text).
+# Position (block_id, line range, order) lives on the Section->Block CONTAINS edge
+# because one Block node can be shared by several versions: an upload reuses the
+# node of every block the diff finds unchanged, wherever it now sits.
 
 
 def _edge_props(method: Method, valid_from) -> dict[str, object]:
@@ -220,6 +356,7 @@ def _layer0_payload(doc: ParsedDocument) -> dict[str, object]:
     blocks = [
         {
             "block_uid": pb.block.block_uid,
+            "block_id": pb.block.block_id,
             "section_id": pb.section_id,
             "line_start": pb.block.lines.start,
             "line_end": pb.block.lines.end,
@@ -315,6 +452,7 @@ def _write_layer0_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
         MERGE (s)-[r:CONTAINS]->(n)
           ON CREATE SET r += $parser_edge,
                         r.version_id = $vid,
+                        r.block_id = b.block_id,
                         r.line_start = b.line_start,
                         r.line_end = b.line_end,
                         r.order = b.order
@@ -330,3 +468,26 @@ def _write_layer0_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
         """,
         p,
     ).consume()
+
+
+def _native(value):
+    """neo4j DateTime -> Python datetime (other values pass through)."""
+    return value.to_native() if hasattr(value, "to_native") else value
+
+
+def _write_upload_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
+    _write_layer0_tx(tx, p)
+    tx.run(
+        "MATCH (d:Document {doc_key: $doc.doc_key}) SET d.title = $doc.title",
+        p,
+    ).consume()
+    if p["old_vid"] is not None:
+        tx.run(
+            """
+            MATCH (new:Version {version_id: $vid}), (old:Version {version_id: $old_vid})
+            MERGE (new)-[r:SUPERSEDES]->(old)
+              ON CREATE SET r += $meta_edge
+            SET old.valid_to = coalesce(old.valid_to, $version.valid_from)
+            """,
+            p,
+        ).consume()
