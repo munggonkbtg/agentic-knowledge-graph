@@ -1,0 +1,313 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="docgraph_v3" name="Layered KG workflow">
+    <mxGraphModel dx="1942" dy="875" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1720" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;" value="&lt;b&gt;Building a layered knowledge graph and putting it to use — v4, aligned with the implementation (M0–M2)&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:13px'&gt;Build from the cheapest, most precise signals first; use the LLM only where needed; every relationship points back to its source block&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="1500" x="60" y="15" as="geometry" />
+        </mxCell>
+        <mxCell id="L1" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#f5f5f5;strokeColor=#666666;" value="Part 1: Build the graph (whole store once, then only new files or changed blocks)" vertex="1">
+          <mxGeometry height="370" width="1590" x="60" y="85" as="geometry">
+            <mxRectangle height="30" width="590" x="60" y="85" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s1" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;1. Collect files and identify the document&lt;/b&gt;&lt;br&gt;Thai/English Markdown + path, source (OCR/digital), access rights&lt;br&gt;Identify which document it is: registry key → file name/similarity → a person confirms when unsure" vertex="1">
+          <mxGeometry height="185" width="200" x="20" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;2. Layer 0: Structure&lt;/b&gt;&lt;br&gt;Document → Version → root Section → Sections (nested by heading) → Block&lt;br&gt;Block = paragraph, table or list; a list over 1,500 characters is split into list items; &lt;b&gt;role&lt;/b&gt; = body / footnote&lt;br&gt;&lt;b&gt;Block ID&lt;/b&gt; = document key + heading path + order within section (no # title, no footnote marks, Thai digits → Arabic)&lt;br&gt;Content hash of normalized text; &lt;b&gt;line range per version, on CONTAINS&lt;/b&gt;&lt;br&gt;HAS_VERSION, CONTAINS, NEXT" vertex="1">
+          <mxGeometry height="185" width="200" x="246" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;3. Layer 1: References&lt;/b&gt;&lt;br&gt;Regex + document registry → REFERENCES &lt;b&gt;pointing to the logical Document&lt;/b&gt; (not a version)&lt;br&gt;LLM only for ambiguous references&lt;br&gt;&lt;i&gt;SUPERSEDES is written at upload (step 8), when the previous version is known&lt;/i&gt;" vertex="1">
+          <mxGeometry height="185" width="200" x="472" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;4. Layer 2: Block–entity&lt;/b&gt;&lt;br&gt;Fix the list of entity types first&lt;br&gt;Entity registry → Thai NER → LLM when a block yields fewer entities than a set threshold&lt;br&gt;MENTIONS &lt;b&gt;points to an Alias&lt;/b&gt; (the name as written)" vertex="1">
+          <mxGeometry height="185" width="200" x="698" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;5. Layer 3: Merge duplicate entities&lt;/b&gt;&lt;br&gt;&lt;b&gt;Batch:&lt;/b&gt; embedding blocking → LLM clusters ~9 at a time → rule checks&lt;br&gt;&lt;b&gt;Online (new name):&lt;/b&gt; link to registry → nearest entity → LLM confirms&lt;br&gt;ALIAS_OF is reversible" vertex="1">
+          <mxGeometry height="185" width="200" x="924" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;6. Layer 4: DEPENDS&lt;/b&gt;&lt;br&gt;Candidate pairs: shared non-hub entity + top-k nearest embeddings per block (capped)&lt;br&gt;LLM budget by PageRank&lt;br&gt;Edge only if evidence is quoted&lt;br&gt;Needs a labelling guide first" vertex="1">
+          <mxGeometry height="185" width="200" x="1150" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s7" parent="L1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;7. Store (Neo4j)&lt;/b&gt;&lt;br&gt;Nodes + relationships with provenance and valid_from/to&lt;br&gt;Full-text + vector index on Block&lt;br&gt;1 document = 1 transaction&lt;br&gt;LLM cache keyed by (hash, prompt_version, model)" vertex="1">
+          <mxGeometry height="185" width="200" x="1376" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="reg" parent="L1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=12;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Document registry + entity registry&lt;/b&gt;&lt;br&gt;Seeded from front matter, file names, lists of units/systems; a person reviews the most frequent entities" vertex="1">
+          <mxGeometry height="85" width="560" x="330" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="variants" parent="L1" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;rounded=1;spacing=6;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;&lt;b&gt;Experiment variants&lt;br&gt;&lt;/b&gt;A = steps 2–4 (layers 0–2)&lt;br&gt;B = A + layer 3 + layer 4 on the top 20% central blocks&lt;br&gt;C = all layers on every block&lt;/blockquote&gt;" vertex="1">
+          <mxGeometry height="95" width="456" x="1110" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="s1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="s2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="s3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="s4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="s5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="s6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="s7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="reg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;endArrow=open;" target="s1" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="reg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;endArrow=open;" target="s3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="reg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;endArrow=open;" target="s4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="reg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;endArrow=open;" target="s5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="L2" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#f5f5f5;strokeColor=#666666;" value="Example of the resulting graph (annual leave case)" vertex="1">
+          <mxGeometry height="350" width="1590" x="60" y="475" as="geometry">
+            <mxRectangle height="30" width="390" x="60" y="475" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ldoc" parent="L2" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Document (logical)&lt;/b&gt;&lt;br&gt;HR Policy" vertex="1">
+          <mxGeometry height="50" width="200" x="40" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="ver" parent="L2" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Version&lt;/b&gt; v3" vertex="1">
+          <mxGeometry height="36" width="140" x="70" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="A12" parent="L2" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#333333;" value="&lt;b&gt;Block A-12&lt;/b&gt; (HR Policy v3, lines 40–41)&lt;br&gt;&amp;quot;Annual leave is 10 days a year.&amp;quot;" vertex="1">
+          <mxGeometry height="80" width="240" x="25" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="C03" parent="L2" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#333333;" value="&lt;b&gt;Block C-03&lt;/b&gt; (Onboarding guide)&lt;br&gt;&amp;quot;For leave rules, see the HR Policy.&amp;quot;" vertex="1">
+          <mxGeometry height="70" width="240" x="390" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="D21" parent="L2" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#333333;" value="&lt;b&gt;Block D-21&lt;/b&gt; (Budget guide)&lt;br&gt;&amp;quot;Leave budget = headcount × annual leave days&amp;quot;" vertex="1">
+          <mxGeometry height="75" width="240" x="390" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="al1" parent="L2" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;Annual leave" vertex="1">
+          <mxGeometry height="45" width="150" x="730" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="al2" parent="L2" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;วันลาพักร้อน" vertex="1">
+          <mxGeometry height="45" width="150" x="730" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="ent" parent="L2" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Entity&lt;/b&gt;&lt;br&gt;Annual leave entitlement" vertex="1">
+          <mxGeometry height="75" width="210" x="960" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="B07" parent="L2" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#333333;" value="&lt;b&gt;Block B-07&lt;/b&gt; (Staff FAQ, in Thai)&lt;br&gt;&amp;quot;พนักงานลาพักร้อนได้ 10 วัน&amp;quot;&lt;br&gt;(Staff get 10 days of leave)" vertex="1">
+          <mxGeometry height="85" width="250" x="950" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="expl" parent="L2" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;rounded=1;spacing=6;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;b&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;/b&gt;&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;&lt;b&gt;If leave changes to 12 days (HR Policy v4 edits A-12)&lt;/b&gt;&lt;/blockquote&gt;&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;C-03&lt;/b&gt; cites the document → still found, because REFERENCES points to the logical document, not v3&lt;/li&gt;&lt;li&gt;&lt;b style=&quot;background-color: transparent; color: light-dark(#000000, var(--ge-light-color, #ffffff));&quot;&gt;B-07&lt;/b&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(#000000, var(--ge-light-color, #ffffff));&quot;&gt; uses the Thai name → found via MENTIONS → ALIAS_OF → same Entity (needs a correct Thai–English merge)&lt;/span&gt;&lt;/li&gt;&lt;li&gt;&lt;b style=&quot;background-color: transparent; color: light-dark(#000000, var(--ge-light-color, #ffffff));&quot;&gt;D-21&lt;/b&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(#000000, var(--ge-light-color, #ffffff));&quot;&gt; never mentions &quot;10&quot; → found mainly via DEPENDS&lt;/span&gt;&lt;/li&gt;&lt;/ul&gt;&lt;br&gt;&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;&lt;i&gt;A shared entity only produces candidates; the decision is made in step 13, and hub entities are down-weighted&lt;/i&gt;&lt;/blockquote&gt;" vertex="1">
+          <mxGeometry height="300" width="340" x="1230" y="38" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="L2" source="A12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;entryX=0;entryY=0.5;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" target="al1" value="MENTIONS (layer 2)">
+          <mxGeometry relative="1" x="-0.0009" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="250" />
+              <mxPoint x="340" y="175" />
+              <mxPoint x="497.5" y="175" />
+              <mxPoint x="497.5" y="172.5" />
+            </Array>
+            <mxPoint x="265" y="250" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="ldoc" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="ver" value="HAS_VERSION">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="ver" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="A12" value="CONTAINS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="C03" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;strokeWidth=2;" target="ldoc" value="REFERENCES (layer 1)&lt;br&gt;to the logical document">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="D21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#d79b00;strokeWidth=2;" target="A12" value="DEPENDS (layer 4)&lt;br&gt;+ evidence text">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="D21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;exitX=1;exitY=0.25;entryX=0.25;entryY=1;" target="al1" value="MENTIONS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="B07" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#9673a6;dashed=1;" target="al2" value="MENTIONS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="al1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="ent" value="ALIAS_OF (layer 3)">
+          <mxGeometry relative="1" x="0.3118" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="al2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;exitX=0.5;exitY=0;entryX=0.35;entryY=1;exitDx=0;exitDy=0;" target="ent" value="ALIAS_OF">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="865" y="690" />
+              <mxPoint x="1094.9" y="690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="L3" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#ffe6cc;strokeColor=#d79b00;" value="Part 2: Use the graph when a new document version is uploaded (impact analysis)" vertex="1">
+          <mxGeometry height="275" width="1590" x="60" y="845" as="geometry" />
+        </mxCell>
+        <mxCell id="u1" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;8. Upload and identify&lt;/b&gt;&lt;br&gt;Which document: registry key → file name/similarity → a person confirms&lt;br&gt;Split into blocks with layer 0&lt;br&gt;Write the new Version: &lt;b&gt;SUPERSEDES&lt;/b&gt; the previous one, which gets valid_to; Document title updated; &lt;b&gt;unchanged blocks reuse their node&lt;/b&gt;" vertex="1">
+          <mxGeometry height="175" width="180" x="15" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u2" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;9. Match blocks and diff&lt;/b&gt;&lt;br&gt;1: same hash = unchanged&lt;br&gt;2: similar text in the same section (renamed headings followed) = &lt;b&gt;edited&lt;/b&gt;&lt;br&gt;2b: very similar text in another section = &lt;b&gt;edited&lt;/b&gt; (moved)&lt;br&gt;3: removed block found in another uploaded file = &lt;b&gt;moved&lt;/b&gt;&lt;br&gt;Footnote entries: exact text only. One-to-one&lt;br&gt;Rest = &lt;b&gt;removed&lt;/b&gt; / &lt;b&gt;added&lt;/b&gt; → (old, new) pairs" vertex="1">
+          <mxGeometry height="175" width="180" x="212" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u3" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;10. Light update&lt;/b&gt;&lt;br&gt;Run layers 0–2 on added or edited blocks so they have REFERENCES and MENTIONS before searching&lt;br&gt;(new blocks then have edges to traverse)" vertex="1">
+          <mxGeometry height="175" width="180" x="409" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u4" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;11. Find candidates&lt;/b&gt;&lt;br&gt;Traverse from edited / removed / added blocks via REFERENCES, MENTIONS, DEPENDS (valid ones only)&lt;br&gt;+ hybrid search&lt;br&gt;Down-weight hub entities" vertex="1">
+          <mxGeometry height="175" width="180" x="606" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u5" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;12. Rank&lt;/b&gt;&lt;br&gt;Fuse graph and hybrid-search ranks with RRF&lt;br&gt;&lt;b&gt;Production:&lt;/b&gt; cut by score threshold&lt;br&gt;&lt;b&gt;Experiment:&lt;/b&gt; top N equal to the baseline" vertex="1">
+          <mxGeometry height="175" width="180" x="803" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u6" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;13. LLM check&lt;/b&gt;&lt;br&gt;Input: &lt;b&gt;old text + new text&lt;/b&gt; + candidate block&lt;br&gt;Output: needs update / not affected / unsure + reason + evidence text" vertex="1">
+          <mxGeometry height="175" width="180" x="1000" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u7" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;14. Report and human review&lt;/b&gt;&lt;br&gt;File, block ID, line range, reason&lt;br&gt;Shows only documents the user may read&lt;br&gt;A person approves / rejects each item" vertex="1">
+          <mxGeometry height="175" width="180" x="1197" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="u8" parent="L3" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;15. Full update&lt;/b&gt;&lt;br&gt;Run layers 3–4 on changed blocks&lt;br&gt;Old relationships get valid_to (not deleted)&lt;br&gt;Lower confidence of edges that led to rejected results" vertex="1">
+          <mxGeometry height="175" width="180" x="1394" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="note2" parent="L3" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;whiteSpace=wrap;fontStyle=2;" value="Known weakness: a dependency not created as an edge in step 6 cannot be found by traversal in step 11, so hybrid search must always run alongside it." vertex="1">
+          <mxGeometry height="35" width="1000" x="15" y="228" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="u1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="u2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="u3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="u4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="u5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="u6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e26" edge="1" parent="1" source="u7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="u8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e27" edge="1" parent="1" source="s7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="u4" value="read graph (valid relationships)">
+          <mxGeometry relative="1" x="0.2598" y="-3" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e28" edge="1" parent="1" source="u8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;exitX=1;exitY=0.25;entryX=1;entryY=0.5;" target="s7" value="write back">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="L4" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#e1d5e7;strokeColor=#9673a6;" value="Part 3: Other uses of the same graph" vertex="1">
+          <mxGeometry height="145" width="1590" x="60" y="1140" as="geometry" />
+        </mxCell>
+        <mxCell id="o1" parent="L4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Question answering (graph-guided retrieval)&lt;/b&gt;&lt;br&gt;Hybrid search finds seed blocks → expand via MENTIONS / REFERENCES → LLM answers with block-level citations" vertex="1">
+          <mxGeometry height="90" width="490" x="20" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="o2" parent="L4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Browse relationships in the store&lt;/b&gt;&lt;br&gt;Which documents cite this one / where this entity appears / which version replaced which (Cypher queries)" vertex="1">
+          <mxGeometry height="90" width="490" x="540" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="o3" parent="L4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Check store quality&lt;/b&gt;&lt;br&gt;References to documents missing from the store; blocks that state conflicting values for the same entity" vertex="1">
+          <mxGeometry height="90" width="490" x="1060" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="L5" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#d5e8d4;strokeColor=#82b366;" value="Part 4: Evaluation (run alongside the build)" vertex="1">
+          <mxGeometry height="160" width="1590" x="60" y="1305" as="geometry" />
+        </mxCell>
+        <mxCell id="ev1" parent="L5" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Gold edge labels&lt;/b&gt;&lt;br&gt;10 files, ~150 blocks labelled by people (not from graph output)&lt;br&gt;3 files double-labelled for kappa&lt;br&gt;DEPENDS is rare; may need more labels" vertex="1">
+          <mxGeometry height="105" width="365" x="20" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ev2" parent="L5" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Change test set&lt;/b&gt;&lt;br&gt;30–50 edit cases (estimate), each with the blocks that truly need revision&lt;br&gt;Pool candidates from several retrieval methods, then people judge" vertex="1">
+          <mxGeometry height="105" width="365" x="410" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ev3" parent="L5" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Per-layer metrics&lt;/b&gt;&lt;br&gt;Precision / recall of REFERENCES, MENTIONS, DEPENDS (separately)&lt;br&gt;Entity merge error rate, run-to-run stability (Jaccard)" vertex="1">
+          <mxGeometry height="105" width="365" x="800" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ev4" parent="L5" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Main experiment&lt;/b&gt;&lt;br&gt;Baseline (hybrid) vs A / B / C at the same N&lt;br&gt;Recall of passages needing revision, split by 3 passage kinds + tokens per file" vertex="1">
+          <mxGeometry height="105" width="365" x="1190" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="e29" edge="1" parent="1" source="ev1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" target="ev3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e30" edge="1" parent="1" source="ev2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" target="ev4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e31" edge="1" parent="1" source="ev3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;" target="ev4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e32" edge="1" parent="1" source="u7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;dashed=1;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" target="ev2" value="approvals / rejections become labels">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="L6" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#f8cecc;strokeColor=#b85450;" value="Part 5: What to test before building, and requirements for real use" vertex="1">
+          <mxGeometry height="160" width="1590" x="60" y="1485" as="geometry" />
+        </mxCell>
+        <mxCell id="sp1" parent="L6" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Test 1: Block ID stability&lt;/b&gt;&lt;br&gt;5 documents with two real versions → parse and match → count % matched correctly&lt;br&gt;If low, fix layer 0 first; every layer depends on it" vertex="1">
+          <mxGeometry height="105" width="365" x="20" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="sp2" parent="L6" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Test 2: Thai&lt;/b&gt;&lt;br&gt;Neo4j full-text analyzer and Thai NER on the 10 labelled files&lt;br&gt;Measure OCR files and born-digital files separately" vertex="1">
+          <mxGeometry height="105" width="365" x="410" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="sp3" parent="L6" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Test 3: Entity distribution&lt;/b&gt;&lt;br&gt;Count how many blocks the 20 most frequent entities appear in&lt;br&gt;Use it to set the hub cut-off" vertex="1">
+          <mxGeometry height="105" width="365" x="800" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ops" parent="L6" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;spacingTop=3;spacing=5;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Requirements for real use&lt;/b&gt;&lt;br&gt;• Access rights stored on Document and applied to every query&lt;br&gt;• Re-extraction policy when the prompt or model changes&lt;br&gt;• Scheduled dumps (Community has no online backup)" vertex="1">
+          <mxGeometry height="105" width="365" x="1190" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="lgt" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" value="&lt;b&gt;Legend&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="80" x="60" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" value="No LLM" vertex="1">
+          <mxGeometry height="30" width="190" x="150" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="LLM partly / ambiguous cases only" vertex="1">
+          <mxGeometry height="30" width="190" x="350" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" value="LLM-heavy (candidate pairs only)" vertex="1">
+          <mxGeometry height="30" width="190" x="550" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="Storage / human review" vertex="1">
+          <mxGeometry height="30" width="190" x="750" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="entity / alias" vertex="1">
+          <mxGeometry height="30" width="190" x="950" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="Test before building" vertex="1">
+          <mxGeometry height="30" width="190" x="1150" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="lg6" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" value="Dashed grey = read/write graph, registry or labels" vertex="1">
+          <mxGeometry height="30" width="300" x="1360" y="1662" as="geometry" />
+        </mxCell>
+        <mxCell id="KG" parent="1" style="swimlane;html=1;startSize=30;fontSize=14;fontStyle=1;align=left;spacingLeft=10;fillColor=#f5f5f5;strokeColor=#666666;" value="What the knowledge graph contains (stored in Neo4j)" vertex="1">
+          <mxGeometry height="1560" width="640" x="1690" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="KGn" parent="KG" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;overflow=fill;" value="&lt;b&gt;Nodes (6 types)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;Type&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;What it is&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Document&lt;/b&gt;&lt;/td&gt;&lt;td&gt;The logical document, independent of version; holds the document key and access rights&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version&lt;/b&gt;&lt;/td&gt;&lt;td&gt;One version of a document (one uploaded file)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Section&lt;/b&gt;&lt;/td&gt;&lt;td&gt;A heading in the Markdown; each version has a root Section and headings nest below it&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Block&lt;/b&gt;&lt;/td&gt;&lt;td&gt;A paragraph, table, list or list item; role body / footnote; Block ID, content hash, embedding. The line range is kept per version on CONTAINS&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Alias&lt;/b&gt;&lt;/td&gt;&lt;td&gt;A name as actually written (Thai, English, abbreviation)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Entity&lt;/b&gt;&lt;/td&gt;&lt;td&gt;What those names refer to: a unit, system, regulation or set value&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
+          <mxGeometry height="275" width="600" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="KGr" parent="KG" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;overflow=fill;" value="&lt;b&gt;Relationships (8 types)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;Type&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;Meaning&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;Created by&lt;/th&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;HAS_VERSION&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Document → Version&lt;/td&gt;&lt;td&gt;Document identification step&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;CONTAINS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Version → root Section → Section → Block (block ID, line range and order per version)&lt;/td&gt;&lt;td&gt;Parser&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;NEXT&lt;/b&gt;&lt;/td&gt;&lt;td&gt;The next block in the same version&lt;/td&gt;&lt;td&gt;Parser&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;SUPERSEDES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;New Version → previous Version&lt;/td&gt;&lt;td&gt;Upload step (metadata)&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#dae8fc;&quot;&gt;&lt;td&gt;&lt;b&gt;REFERENCES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Block → logical Document (cited section stored as a property)&lt;/td&gt;&lt;td&gt;Regex + document registry; LLM only when ambiguous&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#dae8fc;&quot;&gt;&lt;td&gt;&lt;b&gt;MENTIONS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Block → Alias&lt;/td&gt;&lt;td&gt;Entity registry, Thai NER; LLM when below threshold&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#dae8fc;&quot;&gt;&lt;td&gt;&lt;b&gt;ALIAS_OF&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Alias → Entity (reversible)&lt;/td&gt;&lt;td&gt;Embeddings + LLM clustering + rule checks&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#ffe6cc;&quot;&gt;&lt;td&gt;&lt;b&gt;DEPENDS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Block → the Block whose fact it uses without citing it&lt;/td&gt;&lt;td&gt;LLM on candidate pairs only; must quote evidence&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;br&gt;&lt;i style='font-size:11px'&gt;Row colours match the legend: green = no LLM, blue = LLM partly, orange = LLM-heavy&lt;/i&gt;" vertex="1">
+          <mxGeometry height="500" width="600" x="20" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="KGph" parent="KG" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fontSize=11;fillColor=#ffffff;strokeColor=#666666;" value="&lt;b&gt;Data on every relationship&lt;/b&gt;&lt;br&gt;• &lt;b&gt;Provenance:&lt;/b&gt; evidence_block, evidence_span, method, model, prompt_version, confidence&lt;br&gt;• &lt;b&gt;Validity period:&lt;/b&gt; valid_from, valid_to — when a document changes, old relationships are closed, not deleted&lt;br&gt;• &lt;b&gt;Human review result:&lt;/b&gt; review_status (approved / rejected), used to adjust confidence" vertex="1">
+          <mxGeometry height="140" width="600" x="20" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="KGbh" parent="KG" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fontSize=11;fillColor=#ffffff;strokeColor=#666666;" value="&lt;b&gt;Identifying and matching blocks across versions&lt;/b&gt;&lt;br&gt;• &lt;b&gt;Block ID&lt;/b&gt; = document key + heading path + order within section (where the block is)&lt;br&gt;• &lt;b&gt;Node key&lt;/b&gt; is set when a block is first seen; a block the diff finds unchanged keeps its node even if it moved&lt;br&gt;• Match: 1 hash, 2 similar text in the same section, 2b another section, 3 another document; footnotes exact only&lt;br&gt;• Unchanged blocks keep their node and relationships; no re-extraction" vertex="1">
+          <mxGeometry height="135" width="600" x="20" y="994" as="geometry" />
+        </mxCell>
+        <mxCell id="KGih" parent="KG" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fontSize=11;fillColor=#ffffff;strokeColor=#666666;" value="&lt;b&gt;Search indexes&lt;/b&gt;&lt;br&gt;Full-text index and vector index on Block for hybrid search alongside traversal; an index on valid_to to filter valid relationships&lt;br&gt;&lt;i&gt;Check that the full-text analyzer supports Thai&lt;/i&gt;" vertex="1">
+          <mxGeometry height="105" width="600" x="20" y="1133" as="geometry" />
+        </mxCell>
+        <mxCell id="KGgh" parent="KG" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fontSize=11;fillColor=#ffffff;strokeColor=#666666;" value="&lt;b&gt;Supporting registries&lt;/b&gt;&lt;br&gt;Document registry + entity registry, from front matter, file names and lists of units/systems&lt;br&gt;Used to identify documents, create REFERENCES and MENTIONS, and merge duplicate entities" vertex="1">
+          <mxGeometry height="100" width="600" x="20" y="1252" as="geometry" />
+        </mxCell>
+        <mxCell id="KGoh" parent="KG" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fontSize=11;fillColor=#ffffff;strokeColor=#666666;" value="&lt;b&gt;Kept outside the graph&lt;/b&gt;&lt;br&gt;• LLM cache: (content hash, prompt_version, model) → result&lt;br&gt;• Gold labels and the change test set&lt;br&gt;• History of human review results from step 14" vertex="1">
+          <mxGeometry height="100" width="600" x="20" y="1366" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
