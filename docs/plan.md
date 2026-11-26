@@ -550,6 +550,17 @@ Qwen3.5-4B, top 10 per change; `prompts/impact_check_v1.md`,
   heading "Your First 90 Days"): the checker misses a broken link or a
   renamed target, which a rule could catch (a link anchor that no longer
   exists).
+- **Broken-reference rule (2026-11-26, no LLM):** graph signal
+  `broken_reference` in `src/kg/impact.py`: a block that cites the changed
+  section or heading anchor when that target no longer exists in the
+  document's version after the upload (`citable_targets`, `target_exists`;
+  มาตรา 118 (6) counts as มาตรา 118). It ranks first in graph-first and is
+  pinned above the LLM verdicts in `kg impact`, with a `rule` column.
+  Offline (AI labels): 3 pairs flagged, all 3 labelled needs_revision, but they
+  are one block (the E4 link to "Your First 90 Days", for C17, C18, C21), so
+  the evidence is a single case. On the graph: the same block at rank 1 for the
+  three event 2 changes while the LLM still says not_affected; events 1 and 3:
+  no rule hits. Recall at N unchanged (the block was already in the top 5).
 
 ## Open items carried forward
 

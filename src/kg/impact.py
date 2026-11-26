@@ -5,6 +5,9 @@ document and the heading path where it sits). Candidates are the existing body
 blocks of the store, ranked by:
 
 Graph signals (layers 0-2, each its own ranked list):
+* broken_reference  the block cites the changed section or heading anchor and
+                that target no longer exists in the document's version after
+                the upload (renamed heading, removed section): a rule, no LLM
 * cite_section  the block has a REFERENCES edge to the changed document whose
                 cited section is the changed block's section (Thai มาตรา / ข้อ,
                 English #anchor of the heading)
@@ -38,7 +41,8 @@ from kg.layer2_entities import EntityMatcher, block_share, body_block_counts, bu
 from kg.values import AttachedValue, Value, attach_values, extract_values
 
 RRF_K = 60
-SIGNALS = ("cite_section", "value", "entity", "cite_document")
+SIGNALS = ("broken_reference", "cite_section", "value", "entity", "cite_document")
+_SECTION_HEAD = re.compile(r"^(มาตรา|ข้อ|หมวด|ส่วน)([0-9]+(?:/[0-9]+)?)")
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,30 @@ def heading_anchor(section_path: str) -> str | None:
         return None
     heading = section_path.split(" > ")[-1].lower()
     return "#" + re.sub(r"[^\w\s-]", "", heading).strip().replace(" ", "-")
+
+
+def citable_targets(doc: ParsedDocument) -> set[str]:
+    """What a citation can point at in this version of a document, in the compact,
+    lower-case form REFERENCES store: section keys (มาตรา118, ข้อ9/1, หมวด5) and
+    the '#anchor' of every heading."""
+    out = set()
+    for pb in doc.blocks:
+        for heading in pb.block.block_id.split("::")[1].split(" > "):
+            if heading == "_":
+                continue
+            m = _SECTION_HEAD.match(compact(heading)[0])
+            if m:
+                out.add((m.group(1) + m.group(2)).lower())
+            out.add(heading_anchor(heading))
+    return out
+
+
+def target_exists(cited: str, targets: set[str]) -> bool:
+    """'มาตรา118(6)' exists when 'มาตรา118' does; '#anchor' must match exactly."""
+    if cited.startswith("#"):
+        return cited in targets
+    m = _SECTION_HEAD.match(cited)
+    return (m.group(1) + m.group(2)).lower() in targets if m else True
 
 
 def _cites(cited: str, key: str) -> bool:
@@ -99,6 +127,7 @@ class GraphView:
         for d in docs:
             for r in extractor.extract(d).references:
                 self.refs[r.target].append((r.block_uid, compact(r.cited_section)[0].lower()))
+        self.targets = {d.document.doc_key: citable_targets(d) for d in docs}
         self.registry = build_registry(docs, manual)
         self.matcher = EntityMatcher(self.registry)
         mentions = [m for d in docs for m in self.matcher.mentions(d)]
@@ -126,6 +155,7 @@ class GraphView:
         for r in edges["refs"]:
             view.refs[r["target"]].append(
                 (r["uid"], compact(r["cited_section"] or "")[0].lower()))
+        view.targets = {d.document.doc_key: citable_targets(d) for d in docs}
         view.registry = build_registry(docs, manual)
         view.matcher = EntityMatcher(view.registry)
         view.hubs = set(edges["hubs"])
@@ -158,17 +188,23 @@ class GraphView:
         return ents, attach_values(extract_values(text, language), spans, self.hubs)
 
 
-def graph_signals(view: GraphView, change: ChangeItem, candidates: set[str]
+def graph_signals(view: GraphView, change: ChangeItem, candidates: set[str],
+                  targets_after: dict[str, set[str]] | None = None
                   ) -> dict[str, dict[str, float]]:
-    """signal -> {block_uid: strength} for the candidate blocks that have it."""
+    """signal -> {block_uid: strength} for the candidate blocks that have it.
+    targets_after: what each document can be cited at after the upload
+    (default: the view's own documents, i.e. the current versions)."""
     out: dict[str, dict[str, float]] = {s: {} for s in SIGNALS}
     key = section_key(change.section_path)
     anchor = heading_anchor(change.section_path)
+    after = (targets_after if targets_after is not None else view.targets).get(change.doc_key)
     for uid, cited in view.refs.get(change.doc_key, []):
         if uid not in candidates:
             continue
         if (key and _cites(cited, key.lower())) or (anchor and cited == anchor):
             out["cite_section"][uid] = 1.0
+            if after is not None and not target_exists(cited, after):
+                out["broken_reference"][uid] = 1.0
         elif cited == "":
             out["cite_document"][uid] = 1.0
     old_e, old_v = view.facts(change.old_text, change.language)
@@ -214,7 +250,7 @@ def graph_first(signals: dict[str, dict[str, float]], hybrid: list[str]) -> list
     entity, cite_document), then the rest in hybrid order."""
     out, seen = [], set()
     for s in SIGNALS:
-        for u in ranked(signals[s], hybrid):
+        for u in ranked(signals.get(s, {}), hybrid):
             if u not in seen:
                 seen.add(u)
                 out.append(u)
@@ -224,7 +260,7 @@ def graph_first(signals: dict[str, dict[str, float]], hybrid: list[str]) -> list
 def impact_ranking(signals: dict[str, dict[str, float]], hybrid: list[str]) -> list[str]:
     """Variant A: RRF of the hybrid ranking and one ranking per graph signal;
     blocks no list reaches keep their hybrid order at the end."""
-    fused = rrf(hybrid, *[ranked(signals[s], hybrid) for s in SIGNALS if signals[s]])
+    fused = rrf(hybrid, *[ranked(signals[s], hybrid) for s in SIGNALS if signals.get(s)])
     return fused + [u for u in hybrid if u not in set(fused)]
 
 

@@ -23,11 +23,15 @@
 
 ## Which graph signal reaches the positives (main pairs, any rank)
 
-| kind | pairs | cite_section | value | entity | cite_document | any |
-|---|---|---|---|---|---|---|
-| states | 7 | 0 | 4 | 3 | 2 | 5 |
-| cites | 34 | 32 | 3 | 10 | 5 | 33 |
-| depends | 9 | 1 | 2 | 3 | 0 | 5 |
+| kind | pairs | broken_reference | cite_section | value | entity | cite_document | any |
+|---|---|---|---|---|---|---|---|
+| states | 7 | 0 | 0 | 4 | 3 | 2 | 5 |
+| cites | 34 | 3 | 32 | 3 | 10 | 5 | 33 |
+| depends | 9 | 0 | 1 | 2 | 3 | 0 | 5 |
+
+## Broken-reference rule
+
+Blocks citing the changed section or heading when that target no longer exists after the upload: change C17 1, change C18 1, change C21 1, flagged 3, needs_review 3, needs_revision yes / unsure 3.
 
 ## How many blocks the graph reaches per change
 

@@ -2,7 +2,7 @@
 
 **Label source: ai** (an AI reviewer, not a person; does not count for a milestone's done check). Real change items C01-C40 only (the synthetic edits are not in the graph); main needs_review pairs, historical blocks left out.
 
-Reports: `impact_en-benefits-and-perks_20261126-112102.csv`, `impact_en-severance_en-making-a-career_20261126-114358.csv`, `impact_th-labour-protection-act-2541_th-labour-protection-act-amendment-7-2562_20261126-122534.csv`
+Reports: `impact_en-benefits-and-perks_20261126-112102.csv`, `impact_en-severance_en-making-a-career_20261126-123832.csv`, `impact_th-labour-protection-act-2541_th-labour-protection-act-amendment-7-2562_20261126-122534.csv`
 
 | change | event | pairs | found in graph report | @5 | @10 | @20 |
 |---|---|---|---|---|---|---|

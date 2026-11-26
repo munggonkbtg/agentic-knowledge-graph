@@ -128,3 +128,37 @@ def test_evidence_matches_despite_quote_style_and_ellipsis():
     assert evidence_in('"You\'re eligible for coverage..." Shares max out after 10 years.', text)
     assert not evidence_in("You're eligible after 90 days.", text)
     assert not evidence_in("", text)
+
+
+def test_link_to_a_renamed_heading_is_a_broken_reference(tmp_path):
+    from kg.impact import citable_targets
+
+    old = _doc(tmp_path, "making-a-career.md", "t-career", "Making a Career", "en",
+               "## Your First 90 Days\n\nIn your first 90 days you get aligned.\n")
+    guide = _doc(tmp_path, "guide.md", "t-guide", "Guide", "en",
+                 "## Start\n\nSee [your first 90 days](making-a-career.md#your-first-90-days).\n")
+    (tmp_path / "v2").mkdir()
+    new = _doc(tmp_path / "v2", "making-a-career.md", "t-career", "Making a Career", "en",
+               "## Your First Year\n\nIn your first year you get aligned.\n")
+    view = GraphView([old, guide], CFG.layer1, hub_cut=None)
+    uid = guide.blocks[0].block.block_uid
+    change = ChangeItem("X", "t-career", "Your First 90 Days", "old", "new", "en")
+    after = {"t-career": citable_targets(new), "t-guide": citable_targets(guide)}
+    sig = graph_signals(view, change, {uid}, targets_after=after)
+    assert uid in sig["broken_reference"] and uid in sig["cite_section"]
+    # the heading still exists -> not broken
+    same = {"t-career": citable_targets(old)}
+    assert graph_signals(view, change, {uid}, targets_after=same)["broken_reference"] == {}
+    assert graph_first(sig, [uid])[0] == uid
+
+
+def test_citation_of_a_removed_section_is_broken_and_subsections_count(tmp_path):
+    from kg.impact import citable_targets, target_exists
+
+    act = _doc(tmp_path, "act.md", "t-act", "พระราชบัญญัติทดสอบ พ.ศ. 2541", "th",
+               "## หมวด 1 บททั่วไป\n\n### มาตรา ๙\n\nข้อความ\n\n### มาตรา ๑๑๘\n\nข้อความ\n")
+    t = citable_targets(act)
+    assert {"มาตรา9", "มาตรา118", "หมวด1"} <= t
+    assert target_exists("มาตรา118(6)", t) and target_exists("มาตรา118วรรคหนึ่ง", t)
+    assert not target_exists("มาตรา119", t) and not target_exists("มาตรา1181", t)
+    assert target_exists("", t)  # a document-level citation is never broken

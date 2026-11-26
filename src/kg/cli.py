@@ -388,6 +388,9 @@ def impact(
                     order = order_after_check(
                         order, {u: v.verdict for u, v in verdicts.items() if v}, historical,
                         cfg.impact.check_top_n)
+                # a rule hit (broken reference) always comes first, before LLM verdicts
+                broken = [u for u in order if u in sig["broken_reference"]]
+                order = broken + [u for u in order if u not in set(broken)]
                 for rank, u in enumerate(order[: cfg.impact.top_n], start=1):
                     b = info[u]
                     v = verdicts.get(u)
@@ -408,6 +411,8 @@ def impact(
                         "block_uid": u,
                         "lines": f"{b['line_start']}-{b['line_end']}",
                         "signals": ";".join(s for s in SIGNALS if u in sig[s]) or "hybrid",
+                        "rule": ("broken reference: the cited section or heading no longer "
+                                 "exists" if u in sig["broken_reference"] else ""),
                         **checked,
                         "text": b["text"][:200].replace("\n", " ")})
                 typer.echo(f"  {k} {it.change_id} ({it.section_path}): "

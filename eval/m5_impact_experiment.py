@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 
 from compare_embeddings import E5, change_contexts, rankings
 from label_sources import DESCRIPTION
@@ -33,12 +34,29 @@ from m5_labels import by_change, positives
 from make_change_test_set import ROOT
 
 from kg.config import load_config
-from kg.impact import SIGNALS, ChangeItem, GraphView, graph_first, graph_signals, impact_ranking
+from kg.impact import (SIGNALS, ChangeItem, GraphView, citable_targets, graph_first,
+                       graph_signals, impact_ranking)
+from kg.layer0_structure import parse_corpus
 from kg.layer2_entities import load_manual
 
 KS = (5, 10, 20)
+T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 METHODS = ("baseline", "graph", "A")
 ARTEFACTS = {"C32", "C38"}
+
+
+_AFTER: dict[str, dict[str, set[str]]] = {}
+
+
+def targets_after(cfg, event: str, view: GraphView) -> dict[str, set[str]]:
+    """What each document can be cited at after the event's upload: the uploaded
+    versions (real or synthetic) replace the store's versions."""
+    if event not in _AFTER:
+        folder = (ROOT / "data" / "uploads" / event if event.startswith("event")
+                  else ROOT / "data" / "uploads_synthetic" / event)
+        docs = parse_corpus(folder, cfg.layer0, T0) if folder.is_dir() else []
+        _AFTER[event] = {d.document.doc_key: citable_targets(d) for d in docs}
+    return {**view.targets, **_AFTER[event]}
 
 
 def main() -> None:
@@ -53,7 +71,8 @@ def main() -> None:
     hits: dict[tuple, Counter] = defaultdict(Counter)
     reach: dict[str, Counter] = defaultdict(Counter)
     n_changes = 0
-    reached_sizes: list[tuple[str, int, int]] = []  # (change, blocks reached, positives among them)
+    reached_sizes: list[tuple[str, int, int]] = []
+    broken = Counter()  # blocks flagged by the rule, and how they are labelled  # (change, blocks reached, positives among them)
     for ctx in change_contexts(cfg):
         pos = merged.get(ctx["change_id"])
         if not pos:
@@ -68,10 +87,20 @@ def main() -> None:
                           ch["new_text"], ctx["lang"])
         cands = ctx["cands"]
         hybrid = rankings(ch["old_text"] + "\n" + ch["new_text"], cands, e5)["hybrid"]
-        sig = graph_signals(views[sid], item, set(cands))
+        sig = graph_signals(views[sid], item, set(cands),
+                            targets_after(cfg, ctx["change"]["event"], views[sid]))
         orders = {"baseline": hybrid, "graph": graph_first(sig, hybrid),
                   "A": impact_ranking(sig, hybrid)}
         where = {m: {u: i for i, u in enumerate(o, start=1)} for m, o in orders.items()}
+        label = {p.block_uid: p for p in pos}
+        for u in sig["broken_reference"]:
+            p = label.get(u)
+            broken["flagged"] += 1
+            broken["needs_review" if p and not p.historical else "historical" if p
+                   else "not labelled needs_review"] += 1
+            broken["needs_revision yes / unsure"] += bool(
+                p and p.needs_revision in ("yes", "unsure"))
+            broken[f"change {ctx['change_id']}"] += 1
         reached = set().union(*sig.values())
         reached_sizes.append((ctx["change_id"], len(reached),
                               len(reached & {p.block_uid for p in pos})))
@@ -123,6 +152,10 @@ def main() -> None:
         if c["pairs"]:
             out.append(f"| {kind} | {c['pairs']} | "
                        + " | ".join(str(c[s]) for s in SIGNALS) + f" | {c['any']} |")
+    out += ["", "## Broken-reference rule", "",
+            "Blocks citing the changed section or heading when that target no longer "
+            "exists after the upload: " + ", ".join(f"{k} {v}" for k, v in sorted(broken.items()))
+            + "."]
     sizes = sorted(n for _, n, _ in reached_sizes)
     out += ["", "## How many blocks the graph reaches per change", "",
             f"Over {len(sizes)} change items: median {sizes[len(sizes) // 2]}, "
