@@ -532,7 +532,24 @@ Qwen3.5-4B, top 10 per change; `prompts/impact_check_v1.md`,
   historical rows flagged. The evidence check first failed on 8 of 10 quotes
   because the documents use curly apostrophes and the model straight ones, and
   some quotes join fragments with "..."; `evidence_in` now normalizes both:
-  10 / 10 found. Events 2 and 3 not checked yet (about 850 checks, ~50 min).
+  10 / 10 found.
+- All three events checked (2026-11-26), 116 changes, 1,160 checks in about
+  64 min, about 830K tokens:
+
+  | event | changes | needs_update | changes with one | evidence found | historical rows |
+  |---|---|---|---|---|---|
+  | 1 (E1) | 31 | 10 | 6 | 10 / 10 | 4 |
+  | 2 (E2, E3) | 15 | 5 | 5 | 4 / 5 | 1 |
+  | 3 (T1, T2) | 70 | 79 | 32 | 74 / 79 | 59 (reason notes; none moved up) |
+
+- Real labelled pairs on the graph (`eval/m5_graph_check.py`, AI labels, 15
+  pairs): recall@5 0.73 -> **0.80** after the reordering, @10 0.80, @20 0.87.
+  Verdicts on them: needs_update 3 (2 cites, 1 depends), not_affected 9,
+  not checked or below 20 3. **The 3 cites pairs labelled needs_revision yes
+  were called not_affected** (among them the E4 link to the renamed E3
+  heading "Your First 90 Days"): the checker misses a broken link or a
+  renamed target, which a rule could catch (a link anchor that no longer
+  exists).
 
 ## Open items carried forward
 
