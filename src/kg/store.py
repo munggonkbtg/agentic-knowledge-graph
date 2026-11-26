@@ -313,6 +313,147 @@ class Store:
         return {"blocks": len(new_blocks), "reused_nodes": len(reuse),
                 "new_nodes": len(new_blocks) - len(reuse)}
 
+    # -- layer 3: entity merge ----------------------------------------------
+
+    def entities_for_merge(self, examples: int = 2) -> list[dict[str, object]]:
+        """Entities of the registry with their open mentions on current blocks and
+        up to `examples` short passages (for the LLM)."""
+        return [dict(r) for r in self._run(
+            """
+            MATCH (e:Entity)
+            OPTIONAL MATCH (b:Block)-[m:MENTIONS]->(e) WHERE m.valid_to IS NULL
+            WITH e, collect(b.text) AS texts
+            RETURN e.entity_id AS entity_id, e.canonical_name AS name,
+                   e.entity_type AS entity_type, e.language AS language,
+                   coalesce(e.hub, false) AS hub, coalesce(e.sources, []) AS sources,
+                   size(texts) AS mentions,
+                   [t IN texts[0..$n] | substring(t, 0, 240)] AS examples
+            ORDER BY entity_id
+            """, n=examples).records]
+
+    def write_merges(self, canonical: dict[str, str], reasons: dict[str, str],
+                     rule_version: str, model: str, prompt_version: str, confidence: float,
+                     run_at: datetime) -> dict[str, int]:
+        """Layer 3 result, reversible: each merged entity gets merged_into and its
+        aliases get ALIAS_OF to the canonical entity (method llm, model,
+        prompt_version, evidence_span = the LLM's reason). Merges of this rule
+        version that are no longer in `canonical` are undone: merged_into removed,
+        their ALIAS_OF closed (valid_to)."""
+        rows = [{"merged": m, "canonical": c, "reason": reasons.get(m, "")}
+                for m, c in sorted(canonical.items())]
+        p = {"rows": rows, "rv": rule_version, "model": model, "pv": prompt_version,
+             "conf": confidence, "t": run_at, "merged": sorted(canonical)}
+        with self._driver.session(database=self._database) as session:
+            return session.execute_write(_write_merges_tx, p)
+
+    def entity_merges(self) -> dict[str, str]:
+        return {r["e"]: r["c"] for r in self._run(
+            "MATCH (e:Entity) WHERE e.merged_into IS NOT NULL "
+            "RETURN e.entity_id AS e, e.merged_into AS c").records}
+
+    # -- layer 4: DEPENDS ----------------------------------------------------
+
+    def nearest_blocks(self, block_uid: str, k: int, current: set[str]) -> list[str]:
+        """Nearest blocks by the stored e5 vector, restricted to `current`."""
+        rows = self._run(
+            f"""
+            MATCH (b:Block {{block_uid: $u}}) WHERE b.embedding IS NOT NULL
+            CALL db.index.vector.queryNodes('{VECTOR_INDEX}', $n, b.embedding)
+            YIELD node, score
+            RETURN node.block_uid AS uid ORDER BY score DESC
+            """, u=block_uid, n=k + 40).records
+        return [r["uid"] for r in rows if r["uid"] != block_uid and r["uid"] in current][:k]
+
+    def write_depends(self, edges: list, processed: list[str], rule_version: str, model: str,
+                      prompt_version: str, confidence: float, run_at: datetime) -> dict[str, int]:
+        """(dependent)-[:DEPENDS]->(source) per edge, MERGE on rule_version,
+        properties on create only. DEPENDS of the processed blocks from an older
+        rule version are closed (valid_to)."""
+        rows = []
+        for e in edges:
+            edge = Edge(type=EdgeType.DEPENDS, source_id=e.dependent, target_id=e.source,
+                        valid_from=run_at,
+                        provenance=Provenance(method=Method.LLM, evidence_block=e.dependent,
+                                              evidence_span=e.evidence_dependent, model=model,
+                                              prompt_version=prompt_version,
+                                              confidence=confidence),
+                        properties={"fact": e.fact, "evidence_target": e.evidence_source})
+            rows.append({"a": edge.source_id, "b": edge.target_id, "props": {
+                "method": "llm", "model": model, "prompt_version": prompt_version,
+                "confidence": confidence, "valid_from": run_at,
+                "evidence_block": e.dependent, "evidence_span": e.evidence_dependent,
+                **edge.properties}})
+        p = {"rows": rows, "rv": rule_version, "t": run_at, "uids": processed}
+        with self._driver.session(database=self._database) as session:
+            return session.execute_write(_write_depends_tx, p)
+
+    # -- step 15: full update ----------------------------------------------
+
+    def close_edges_of_old_blocks(self, run_at: datetime,
+                                  doc_key_prefix: str = "") -> dict[str, int]:
+        """Close (valid_to, closed_reason) the open REFERENCES, MENTIONS and DEPENDS
+        edges of blocks that are in no current version: replaced by an edit,
+        removed, or moved away. Blocks reused by a current version keep theirs.
+        Nothing is deleted. `doc_key_prefix` limits it to blocks of matching
+        documents (tests). Returns the number of edges closed per type."""
+        recs = self._run(
+            """
+            MATCH (v:Version) WHERE v.valid_to IS NULL
+            MATCH (:Section)-[:CONTAINS {version_id: v.version_id}]->(b:Block)
+            WITH collect(DISTINCT b.block_uid) AS current
+            MATCH (b:Block)-[r:REFERENCES|MENTIONS|DEPENDS]-()
+            WHERE r.valid_to IS NULL AND NOT b.block_uid IN current
+              AND b.doc_key STARTS WITH $p
+              AND (type(r) = 'DEPENDS' OR startNode(r) = b)
+            WITH DISTINCT r
+            SET r.valid_to = $t, r.closed_reason = 'block no longer current'
+            RETURN type(r) AS type, count(r) AS n
+            """, t=run_at, p=doc_key_prefix).records
+        return {r["type"]: r["n"] for r in recs}
+
+    def citation_edges(self, block_uid: str, target_doc: str) -> list[dict[str, object]]:
+        """Open REFERENCES from a block to a document, with their element ids."""
+        return [dict(r) for r in self._run(
+            """
+            MATCH (:Block {block_uid: $u})-[r:REFERENCES]->(:Document {doc_key: $d})
+            WHERE r.valid_to IS NULL
+            RETURN elementId(r) AS id, r.cited_section AS cited_section
+            """, u=block_uid, d=target_doc).records]
+
+    def depends_between(self, a: str, b: str) -> list[str]:
+        """Open DEPENDS edges between two blocks, either direction."""
+        return [r["id"] for r in self._run(
+            """
+            MATCH (:Block {block_uid: $a})-[r:DEPENDS]-(:Block {block_uid: $b})
+            WHERE r.valid_to IS NULL RETURN DISTINCT elementId(r) AS id
+            """, a=a, b=b).records]
+
+    def block_position(self, block_uid: str) -> dict[str, object] | None:
+        rec = self._run(
+            """
+            MATCH (:Section)-[c:CONTAINS]->(b:Block {block_uid: $u})
+            RETURN b.doc_key AS doc_key, c.block_id AS block_id ORDER BY c.version_id LIMIT 1
+            """, u=block_uid).records
+        return dict(rec[0]) if rec else None
+
+    def set_review_status(self, edge_ids: list[str], status: str, factor: float,
+                          run_at: datetime) -> int:
+        """Record a person's review on edges (step 15). rejected: confidence =
+        original x factor; approved: confidence back to the original. The original
+        is kept in confidence_before_review, so applying twice changes nothing."""
+        if not edge_ids:
+            return 0
+        rec = self._run(
+            """
+            MATCH ()-[r]->() WHERE elementId(r) IN $ids
+            SET r.confidence_before_review = coalesce(r.confidence_before_review, r.confidence),
+                r.review_status = $s, r.reviewed_at = $t
+            SET r.confidence = CASE $s WHEN 'rejected' THEN r.confidence_before_review * $f
+                                       ELSE r.confidence_before_review END
+            RETURN count(r) AS n
+            """, ids=edge_ids, s=status, f=factor, t=run_at)
+        return rec.records[0]["n"]
+
     def confirm_identification(self, file_hash: str, doc_key: str, answer: str,
                                confirmed_at: datetime) -> int:
         """Record a person's answer for a file that was uploaded but listed for
@@ -359,7 +500,7 @@ class Store:
             current + """
             MATCH (b)-[r:REFERENCES]->(t:Document) WHERE r.valid_to IS NULL
             RETURN DISTINCT b.block_uid AS uid, t.doc_key AS target,
-                   r.cited_section AS cited_section
+                   r.cited_section AS cited_section, r.confidence AS confidence
             """).records]
         mentions = [dict(r) for r in self._run(
             current + """
@@ -381,7 +522,13 @@ class Store:
             """).records]
         hubs = [r["e"] for r in self._run(
             "MATCH (e:Entity) WHERE e.hub = true RETURN e.entity_id AS e").records]
-        return {"refs": refs, "mentions": mentions, "loose": loose, "hubs": hubs}
+        depends = [(r["a"], r["b"]) for r in self._run(
+            """
+            MATCH (a:Block)-[r:DEPENDS]->(b:Block) WHERE r.valid_to IS NULL
+            RETURN a.block_uid AS a, b.block_uid AS b
+            """).records]
+        return {"refs": refs, "mentions": mentions, "loose": loose, "hubs": hubs,
+                "merges": self.entity_merges(), "depends": depends}
 
     def version_changes(self, doc_key: str) -> dict[str, object] | None:
         """The diff stored for the current version of a document against the
@@ -841,6 +988,50 @@ def _write_layer0_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
 def _native(value):
     """neo4j DateTime -> Python datetime (other values pass through)."""
     return value.to_native() if hasattr(value, "to_native") else value
+
+
+def _write_depends_tx(tx: ManagedTransaction, p: dict[str, object]) -> dict[str, int]:
+    tx.run(
+        """
+        UNWIND $rows AS x
+        MATCH (a:Block {block_uid: x.a}), (b:Block {block_uid: x.b})
+        MERGE (a)-[r:DEPENDS {rule_version: $rv}]->(b)
+          ON CREATE SET r += x.props
+        """, p).consume()
+    closed = tx.run(
+        """
+        MATCH (a:Block)-[r:DEPENDS]-() WHERE a.block_uid IN $uids AND r.valid_to IS NULL
+          AND r.rule_version <> $rv
+        WITH DISTINCT r
+        SET r.valid_to = $t, r.closed_reason = 'replaced by rule_version ' + $rv
+        RETURN count(r) AS n
+        """, p).single()["n"]
+    return {"written": len(p["rows"]), "closed": closed}
+
+
+def _write_merges_tx(tx: ManagedTransaction, p: dict[str, object]) -> dict[str, int]:
+    undone = tx.run(
+        """
+        MATCH (e:Entity) WHERE e.merge_rule_version = $rv AND NOT e.entity_id IN $merged
+        OPTIONAL MATCH (:Alias)-[r:ALIAS_OF {rule_version: $rv}]->(:Entity)
+        WHERE r.merged_entity = e.entity_id AND r.valid_to IS NULL
+        SET r.valid_to = $t, r.closed_reason = 'merge undone by a later run'
+        REMOVE e.merged_into, e.merge_rule_version
+        RETURN count(DISTINCT e) AS n
+        """, p).single()["n"]
+    tx.run(
+        """
+        UNWIND $rows AS x
+        MATCH (m:Entity {entity_id: x.merged}), (c:Entity {entity_id: x.canonical})
+        SET m.merged_into = x.canonical, m.merge_rule_version = $rv
+        WITH m, c, x
+        MATCH (a:Alias)-[base:ALIAS_OF]->(m) WHERE base.valid_to IS NULL
+        MERGE (a)-[r:ALIAS_OF {rule_version: $rv}]->(c)
+          ON CREATE SET r.method = 'llm', r.model = $model, r.prompt_version = $pv,
+                        r.confidence = $conf, r.valid_from = $t, r.evidence_span = x.reason,
+                        r.merged_entity = x.merged
+        """, p).consume()
+    return {"merged": len(p["rows"]), "undone": undone}
 
 
 def _write_diff_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:

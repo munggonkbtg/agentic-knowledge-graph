@@ -4,9 +4,11 @@ Research prototype: build a knowledge graph over a Markdown document store
 (Thai and English) and use it to find passages that need revision when a
 document is updated. Everything runs locally from the command line.
 
-Status: M0-M1 done; M2 (diff) and M3 (layer 1) built, **not verified**: their
-label sheets were answered by an AI reviewer, and no person has labelled yet.
-Plan, decisions, label provenance and open items: [docs/plan.md](docs/plan.md).
+Status: the whole workflow of diagram v6 (`docs/diagrams/`) is implemented (layers 0-4, impact
+analysis with local LLM check, review sheets, full update, one-command
+pipeline). Results so far are measured against AI labels only; no person has
+labelled yet, so no milestone counts as verified. Plan, decisions, label
+provenance and open items: [docs/plan.md](docs/plan.md).
 
 ## 1. One-time setup
 
@@ -70,6 +72,12 @@ uv run kg init-schema
 | `kg impact ... --check [--review]` | `--check`: the local LLM labels the top `impact.check_top_n` candidates (verdict, reason, evidence; nothing dropped; broken references by rule come first). `--review`: also writes a review sheet for the flagged changes to `data/labels/reviews/` (see [docs/review_guide.md](docs/review_guide.md)). |
 | `kg review-import SHEET` | Adds a filled review sheet's decisions to `data/labels/reviews/review_history.csv` (label source `human_review`). |
 | `kg confirm-queue` | Records a person's answers for uploaded files listed for confirmation in the identification queue. |
+| `kg build --layer 3` | Entity merge (M6): candidate pairs by name containment and e5 name similarity, confirmed by the local LLM; merged entities get `merged_into` and their aliases `ALIAS_OF` the canonical entity (reversible). CSV of pairs in `data/reports/`. |
+| `kg build --layer 4` | DEPENDS (M7): the most central blocks (`layer4.central_share`) paired with blocks sharing an entity and their nearest blocks; the local LLM judges; an edge only when both quotes are found. CSV in `data/reports/`. |
+| `kg full-update` | Step 15: closes edges of blocks no longer in any current version and applies the review history to edge confidence. |
+| `kg review-apply` | Applies review decisions to the edges behind them (rejected: confidence x `impact.review_reject_factor`). |
+| `kg doctor` | Checks config, Neo4j, schema, prompts, folders, embedding dependencies and the local LLM. |
+| `kg ingest --corpus DIR` / `--event DIR [--check] [--review]` | The whole workflow in one command (see section 3). |
 | `kg registry` | Lists the names and file names each document can be cited by (add reviewed extra names in `registry/aliases.yaml`) |
 | `kg backup-labels` | Copies `data/labels/` (not in git) to a dated folder outside the repository: `~/kg_label_backups/labels-<date>-<time>`, or `KG_LABEL_BACKUP_DIR`. Every sheet generator in `eval/` does the same before writing. |
 | `kg reset --yes` | Deletes all pipeline nodes (Document, Version, Section, Block, Alias, Entity). Constraints and indexes stay. Cannot be undone. |
@@ -134,7 +142,54 @@ to fill in `answer` and `new_refs`.
   stored on the `Section-[:CONTAINS]->Block` relationship, because one Block
   node can belong to several versions.
 
-## 3. Tests
+## 3. Testing with your own documents
+
+Everything runs on this machine: Neo4j, the e5 embedding model and the local
+LLM (Ollama, `qwen3.5:4b-q4_K_M`). No document text leaves the machine, and
+none is written to git or logs (reports and sheets go to `data/`, which is
+ignored).
+
+1. **Files.** Markdown (`.md`), Thai or English. Front matter is optional: a
+   file without `doc_key` is identified by its text (a new document gets a
+   generated key and a row in `data/labels/doc_identification_queue.csv` to
+   confirm with `kg confirm-queue`). Put the starting store in one folder and
+   each later batch of new versions in its own folder, for example
+   `data/my_corpus/` and `data/my_uploads/2026-12-01/`.
+2. **Check the setup** (Neo4j started, Ollama running):
+
+   ```powershell
+   uv run --group embed kg doctor
+   ```
+3. **A fresh database.** The pilot data is in the graph now. To start clean
+   (this deletes all pipeline nodes; asks for `--yes`):
+
+   ```powershell
+   uv run kg reset --yes
+   ```
+4. **First build of the store** (layers 0-4; layer 3 and 4 call the local LLM,
+   roughly 5-60 minutes depending on size):
+
+   ```powershell
+   uv run --group embed kg ingest --corpus data/my_corpus
+   ```
+5. **Each batch of new versions** (upload, diff, impact with LLM check and a
+   review sheet, then the full update):
+
+   ```powershell
+   uv run --group embed kg ingest --event data/my_uploads/2026-12-01 --check --review
+   ```
+6. **Read the results.** Impact report: `data/reports/impact_*.csv` (top 20
+   candidates per change, signals, rule hits, LLM verdict). Review sheet:
+   `data/labels/reviews/review_*.csv` (see [docs/review_guide.md](docs/review_guide.md));
+   after filling it, `kg review-import <sheet>` and `kg review-apply`.
+   Layer 3 merges and layer 4 DEPENDS: `data/reports/merges_*.csv`,
+   `data/reports/depends_*.csv`.
+7. Back up labels and reviews with `uv run kg backup-labels`.
+
+Tunable values (thresholds, budgets, prompts) are in `config.yaml`; all of them
+are provisional until measured on labelled data.
+
+## 4. Tests
 
 ```powershell
 uv run pytest
@@ -143,7 +198,7 @@ uv run pytest
 Tests marked `neo4j` run only when `NEO4J_URI`, `NEO4J_USER` and
 `NEO4J_PASSWORD` are set (for example from `.env`) and are skipped otherwise.
 
-## 4. Data
+## 5. Data
 
 Document files live in `data/` and are **not** committed: the English pilot
 files have no license and must not be redistributed. See `data/README.md`.

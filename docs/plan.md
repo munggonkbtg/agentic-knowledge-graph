@@ -15,8 +15,10 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
 | M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (recounted 2026-11-25 with `eval/m5_labels.py`: m5 + m5s + m5e and the additions, each (change, block) pair once): needs_review **54 rows** (46 in the pools + 8 additions in `m5s_additions_ai.csv`) = **61 change-block pairs**. **Historical** blocks (decided 2026-11-25, `src/kg/historical.py`: every block of an amending act, i.e. a title with "(ฉบับที่ N)", and reason notes starting "หมายเหตุ :- เหตุผลในการประกาศใช้") are kept with their labels but left out of the main numbers and reported as their own row: 11 rows / 11 pairs (states 6, cites 5). **Main: 43 rows (states 7, cites 30, depends 6) = 50 pairs (states 7, cites 34, depends 9).** The additions file has 8 rows (not 10) and no rows for x-S450 / x-S451; those T5 ข้อ 16 blocks are only in m5e (S13-E01 / E02), so nothing is counted twice. x-S097 appears twice (XS11 cites, XS14 depends): two rows. Historical states rows: 6 of 13 (S08-B09, S08-E02, S08-E05, S10-B01, S11-B11, S14-B11), not 8; the other 7 are current rules in E2, E4, T3, T4, T5 |
 | M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Step 3 (values) measured and written to the graph (L2-v2). Step 4 (local LLM fallback) measured offline: not adopted, stopped for the user's decision |
-| M5 Impact analysis | **Started 2026-11-26.** Step 1 (offline retrieval experiment) and step 2 (diff, embeddings and `kg impact` on the graph; events 1-3 uploaded) done; see "M5" below. Steps 3-4 (LLM check, review report) not started |
-| M6-M7 | Not started |
+| M5 Impact analysis | **Built 2026-11-26** (steps 1-4: offline experiment, `kg impact` on the graph, LLM check as labels, broken-reference rule, review sheets); see "M5" below. Measured against AI labels only |
+| M6 Entity merge (layer 3) | **Built 2026-11-26**, run on the pilot; see "M6" below |
+| M7 DEPENDS (layer 4) | **Built 2026-11-26**; see "M7" below |
+| Step 15 full update, pipeline | **Built 2026-11-26** (`kg full-update`, `kg review-apply`, `kg doctor`, `kg ingest`); see "Completing the system" below |
 
 ## Label provenance (corrected 2026-11-25)
 
@@ -418,9 +420,9 @@ file (`m4_entity_type_coverage.csv`) is not in `data/labels/`.
 
 ## M5: impact analysis (workflow steps 10-14)
 
-(Diagram v5, `docs/diagrams/document_graph_workflow_v5_EN.drawio` and `_TH`,
-2026-11-26, shows the system as built through M5 step 2; v4 is kept for the
-record.)
+(Diagram v6, `docs/diagrams/document_graph_workflow_v6_EN.drawio` and `_TH`,
+2026-11-26, shows the whole system as built, with the pilot results; v4 and v5
+are kept for the record.)
 
 The scope comes from the workflow diagram v4 (steps 8-15, Part 4 "main
 experiment") and this plan; the original brief's text was not available when
@@ -576,6 +578,102 @@ needs_update), with their top 10.
 - Not built: lowering edge confidence from rejected items (step 15, M6-M7),
   filtering by access rights.
 
+## Completing the system (2026-11-26)
+
+The user asked to implement the whole workflow before testing on a real
+document set (Markdown, no access filtering yet), and to review later.
+
+**Step 15, full update** (`kg full-update`, `kg review-apply`):
+- Open REFERENCES, MENTIONS and DEPENDS of blocks in no current version get
+  `valid_to` and `closed_reason = "block no longer current"`; reused unchanged
+  blocks keep theirs. On the pilot: 93 REFERENCES and 141 MENTIONS closed.
+- **Correction (2026-11-26):** those 234 edges were first closed by a new Neo4j
+  test that ran on the whole graph with its own date (2024-06-01). The closing
+  itself was right; the date was not. Their `valid_to` was set to the time
+  their version was superseded (the upload, 2026-11-26) and `closed_note`
+  records the fix; the method now takes a doc-key prefix and the test uses it.
+  A full test run was then checked to leave the graph's edges unchanged.
+- Review feedback: the latest decision per review row; `not_affected` marks
+  the citation (at the changed section or document level) and DEPENDS edges
+  between the candidate and the changed block `review_status = rejected`,
+  confidence x `impact.review_reject_factor` (0.5, provisional, original kept
+  in `confidence_before_review`); other decisions mark them approved.
+  Idempotent. Impact uses citation confidence as signal strength, so rejected
+  citations rank lower and are not removed. No review decisions yet.
+
+**M6, entity merge (layer 3)** (`src/kg/layer3_merge.py`, `prompts/merge_v1.md`,
+`kg build --layer 3`, rule_version L3-v1):
+- Candidate pairs: same type, no hubs; name containment (English hyphen =
+  space) or e5 name similarity >= 0.85 (top 3 per entity). The local LLM
+  confirms; only "same" merges; transitive; canonical = most mentions. Written
+  reversibly: `merged_into` on the merged entity, its aliases ALIAS_OF the
+  canonical entity (method llm); a later run undoes merges it no longer finds.
+- Pilot run: 107 entities, 180 pairs (160 by similarity, 20 by containment),
+  **0 Thai-English pairs**: the English handbook (US benefits) and the Thai
+  labour law share almost no concepts. The LLM answered "same" once, wrongly
+  (ค่าจ้างในวันทำงาน into วันทำงาน, a narrower term), although the prompt forbids
+  it; a code rule now lets a containment pair merge only when the longer name
+  adds generic words alone (claim, policy, benefit, plan, program, สิทธิ). Rerun
+  from the cache: **0 merges**, the wrong one undone. Layer 3 has nothing to do
+  on this pilot; real documents with both languages on the same topics may
+  differ.
+
+**M7, DEPENDS (layer 4)** (`src/kg/layer4_depends.py`, `prompts/depends_v1.md`,
+`kg build --layer 4`, rule_version L4-v1, draft guide
+`docs/labelling_guide_depends.md`):
+- Most central blocks (degree over shared non-hub canonical entities and
+  outgoing REFERENCES; `layer4.central_share` 0.2 = variant B) are paired with
+  blocks sharing an entity and their 5 nearest by e5 (vector index), at most 5
+  pairs per block. The local LLM answers direction, fact and two quotes; an
+  edge is written only when both quotes are found in their blocks.
+- Pilot run (Qwen3.5-4B local, 2026-11-26): 98 blocks processed, 490 pairs,
+  25 min, about 412K tokens: none 464, edges kept **15** (12 inside one
+  document, all Thai), dropped because a quote was not found 11.
+- Quality, read by Claude on a sample of 8 (not a label): plausible ones (T3
+  holiday pay relies on T1's holiday-pay rule; a wage clause relies on the
+  ค่าจ้าง definition in มาตรา 5; two T5 settlement clauses); wrong ones: one
+  `fact` copies the prompt's own example while the quotes are Thai wage text,
+  and one edge is a citation (T4 ข้อ 9 naming T5's regulation). The quote
+  check proves the text exists, not that the link is right.
+
+**Variant A vs B (offline, AI labels, 50 main pairs):** identical: graph-first
+recall@5 0.66, @10 0.90, @20 1.00 (`eval/results/m5_impact_B_ai.md`). Layer
+3 made 0 merges; the 15 DEPENDS edges reach 1 labelled pair (a cites pair that
+citations already reach) and none of the 9 labelled depends pairs (8 of them
+English, while the processed central blocks are mostly Thai law). On this
+pilot layers 3-4 add nothing measurable. Variant C (all blocks, about 2 hours
+locally) was not run.
+
+**Pipeline** (`kg doctor`, `kg ingest`): `kg doctor` checks config, Neo4j
+credentials (names only) and connection, schema and vector index, prompt files,
+writable folders, embedding dependencies and the Ollama model. `kg ingest
+--corpus DIR` runs schema, layer 0 with identification, layers 1-2,
+embeddings, layer 3, layer 4; `kg ingest --event DIR [--check] [--review]`
+runs upload + diff, light update, impact (+ check + review sheet), full
+update, layer 3 and layer 4 for the new and edited blocks. README section
+"Testing with your own documents".
+
+**LLM switched to OpenRouter (2026-11-26, user decision):** model
+`deepseek/deepseek-v4.1-flash-1017` (listed by OpenRouter at $0.30 / $1.20 per
+million input / output tokens, structured outputs supported). `llm.runtime:
+openrouter` in config; the key comes only from the environment variable named
+in `llm.api_key_env` (OPENROUTER_API_KEY, in .env). Requests keep the JSON
+schema (strict), reasoning off, `provider.require_parameters` and
+`provider.data_collection: deny` (only providers that do not store or train
+on prompts). Document text is now sent to OpenRouter and the model provider:
+acceptable for the public pilot; for internal documents check first that they
+hold no customer personal data. HTTP 401/402/403 stop a run at once
+(`LLMUnavailable`) instead of being retried. `kg doctor` checks the key, the
+model and the remaining credit. First smoke test: HTTP 402, the account has no
+credit yet. The Ollama setup stays available (`llm.runtime: ollama`). Results
+so far (impact check, layer 3) came from the local Qwen3.5-4B; reruns with
+DeepSeek are new calls (cache key includes the model). The layer 4 run with
+Qwen was stopped after 15 of 490 pairs.
+**Back to the local model the same day (user decision):** `llm.runtime:
+ollama`, `qwen3.5:4b-q4_K_M`; the OpenRouter transport stays in the code and in
+a config comment. No document text left the machine: the only OpenRouter
+calls were the synthetic smoke test, answered with HTTP 402.
+
 ## Open items carried forward
 
 | Item | Where it belongs |
@@ -590,12 +688,15 @@ needs_update), with their top 10.
 | Historical text: T2 and the reason notes appended to T1 restate old wording | **Decided 2026-11-25:** flagged by rule (`src/kg/historical.py`), out of the main numbers, reported as their own row |
 | Section numbers are not unique across laws: T5 cites มาตรา ๓๔ of the Home Workers Act; matching on the number alone links it to the Labour Protection Act | Layer 1 / M5 section search: require the law name when the cited act is not the block's own |
 | Diff results are not stored in the graph (old -> new block for edits) | M5, impact analysis needs them |
-| Edges on the node of an edited block are not moved or closed yet | M5 light / full update |
+| Edges on the node of an edited block are not moved or closed yet | **Done 2026-11-26:** `kg full-update` closes them |
 | `valid_to IS NULL` cannot use a Neo4j range index | M5, when queries filter on validity |
 | `DEPENDS` evidence needs a quote from each block (one field today) | M7 |
 | Thai full-text analyzer exists (`thai`); quality not checked against PyThaiNLP | M5 hybrid search |
 | Full review sheet (deleted with the data reset) | Rebuild after the blind answers, so it cannot anchor them |
 | LLM (API or local), `DEPENDS` labelling guide | M4/M7; the user's decisions. MENTIONS guide agreed 2026-11-25: `docs/labelling_guide_mentions.md` |
 | English entity coverage is low with headings as the only source (3 / 10 pairs) | M4: decide between more rule sources, the LLM fallback, or relying on values / embeddings for English |
+| DEPENDS prompt v1: the small model sometimes copies the prompt's example into `fact`, and calls a citation a dependency | Prompt v2 (no copyable example; citations excluded by rule) and a person's DEPENDS labels before trusting the edges |
+| `db.index.vector.queryNodes` is deprecated in Neo4j 2026 (replaced by SEARCH); it still works | Move the vector queries to SEARCH |
+| Layers 3-4 reach none of the labelled depends pairs on the pilot (variant B) | Variant C, or a person's labels on real documents |
 | Entities that leave the registry keep their node (no validity on nodes) | M4/M5, when the registry changes between runs |
 | No person has labelled any sheet yet | Before any milestone is marked done |

@@ -136,3 +136,60 @@ def test_impact_check_uses_its_own_prompt_schema_and_context(tmp_path):
     # cached by the whole input
     again = c.check_impact("18 days", "25 days", "New hires get 18 days.", "doc > Vacation")
     assert again.cached and again.data.verdict == "needs_update"
+
+
+def test_openrouter_transport_shapes_the_request_and_reply(tmp_path, monkeypatch):
+    """A fake HTTP server stands in for OpenRouter: no real request is made."""
+    import io
+    import urllib.error
+    import urllib.request
+
+    from kg.llm import LLMUnavailable, openrouter_transport
+
+    monkeypatch.setenv("KG_TEST_OR_KEY", "test-key-not-real")
+    s = LLMSettings(runtime="openrouter", endpoint="https://example.test/api/v1",
+                    model="vendor/model", api_key_env="KG_TEST_OR_KEY",
+                    cache_file=tmp_path / "c.sqlite", prompt_file=ROOT / "prompts/mentions_v1.md")
+    sent = {}
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout):
+        sent["url"], sent["auth"] = req.full_url, req.headers.get("Authorization")
+        sent["body"] = json.loads(req.data.decode())
+        return Resp(json.dumps({"choices": [{"message": {"content": '{"mentions": []}'}}],
+                                "usage": {"prompt_tokens": 12, "completion_tokens": 3}}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    c = LLMClient(s, root=ROOT, transport=openrouter_transport(s, env_file=None))
+    res = c.extract_mentions("text", use_cache=False)
+    assert res.data.mentions == [] and (res.tokens_in, res.tokens_out) == (12, 3)
+    b = sent["body"]
+    assert sent["url"] == "https://example.test/api/v1/chat/completions"
+    assert sent["auth"] == "Bearer test-key-not-real"
+    assert b["response_format"]["json_schema"]["schema"] == MentionList.model_json_schema()
+    assert b["provider"] == {"require_parameters": True, "data_collection": "deny"}
+    assert b["reasoning"] == {"enabled": False} and b["model"] == "vendor/model"
+
+    def no_credits(req, timeout):
+        raise urllib.error.HTTPError(req.full_url, 402, "Payment Required", {},
+                                     io.BytesIO(b'{"error": "Insufficient credits"}'))
+
+    monkeypatch.setattr(urllib.request, "urlopen", no_credits)
+    with pytest.raises(LLMUnavailable, match="402"):
+        c.extract_mentions("other text", use_cache=False)
+
+
+def test_openrouter_needs_the_key_variable(tmp_path, monkeypatch):
+    from kg.config import MissingEnvError
+    from kg.llm import openrouter_transport
+
+    monkeypatch.delenv("KG_TEST_OR_MISSING", raising=False)
+    s = LLMSettings(runtime="openrouter", api_key_env="KG_TEST_OR_MISSING")
+    with pytest.raises(MissingEnvError, match="KG_TEST_OR_MISSING"):
+        openrouter_transport(s, env_file=None)

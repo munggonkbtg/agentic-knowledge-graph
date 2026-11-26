@@ -122,14 +122,17 @@ layer2:
   llm_fallback_max_entities: 0
 
 llm:
-  # Local model behind Ollama (decided 2026-11-25: local first, no API in M4
-  # step 4). No key is needed; a runtime that needs one reads it from an
-  # environment variable. All calls go through src/kg/llm.py.
+  # All calls go through src/kg/llm.py. Keys only from environment variables.
+  # History: local Ollama model first (2026-11-25, M4 step 4 and M5 check).
+  # Back to the local model 2026-11-26 (user), after a short switch to
+  # OpenRouter. Nothing leaves this machine. To use OpenRouter instead:
+  #   runtime: openrouter, endpoint: https://openrouter.ai/api/v1,
+  #   model: deepseek/deepseek-v4.1-flash-1017, api_key_env: OPENROUTER_API_KEY
+  #   (key in .env), data_collection: deny, max_tokens: 1024
   runtime: ollama
   endpoint: http://localhost:11434
-  # Explicit quantization tag (Ollama lists qwen3.5:4b-q4_K_M at 3.3 GB).
-  model: qwen3.5:4b-q4_K_M
-  num_ctx: 2048          # blocks are short; GPU memory is not
+  model: qwen3.5:4b-q4_K_M    # explicit quantization tag (3.3 GB, 100% GPU)
+  num_ctx: 2048          # Ollama only: context size (blocks are short)
   temperature: 0.0       # extraction: deterministic decoding, not the card's chat defaults
   think: false           # thinking mode off for extraction
   max_retries: 2         # invalid JSON: retried this many times, then a recorded failure
@@ -142,6 +145,12 @@ llm:
   check_prompt_version: impact-check-v1
   check_prompt_file: prompts/impact_check_v1.md
   check_num_ctx: 4096    # old + new + candidate passage
+  # Layer 3 (entity merge) and layer 4 (DEPENDS) prompts
+  merge_prompt_version: merge-v1
+  merge_prompt_file: prompts/merge_v1.md
+  depends_prompt_version: depends-v1
+  depends_prompt_file: prompts/depends_v1.md
+  depends_num_ctx: 4096
 
 impact:
   # M5 ranking of candidate blocks (src/kg/impact.py). Decided by the user
@@ -152,3 +161,20 @@ impact:
   report_dir: data/reports   # not in git: reports quote document text
   check_top_n: 10       # candidates per change the LLM checks (user decision 2026-11-26)
   review_dir: data/labels/reviews   # review sheets + history (step 14), backed up with labels
+  review_reject_factor: 0.5   # PROVISIONAL: confidence x this on edges behind a rejected item
+
+layer3:
+  # Entity merge (M6, src/kg/layer3_merge.py). All values PROVISIONAL.
+  rule_version: L3-v1
+  min_similarity: 0.85       # e5 cosine of the two names to become a candidate pair
+  top_k: 3                   # nearest names per entity sent to the LLM
+  min_containment_chars: 4   # a name inside another counts from this length (compact)
+  confidence: 0.6            # on ALIAS_OF edges written by the merge
+
+layer4:
+  # DEPENDS (M7, src/kg/layer4_depends.py). All values PROVISIONAL.
+  rule_version: L4-v1
+  nearest_k: 5               # nearest blocks by e5 added to the shared-entity pairs
+  max_pairs_per_block: 5     # cap per block
+  central_share: 0.2         # most central blocks processed: 0.2 = variant B, 1.0 = C
+  confidence: 0.6            # on DEPENDS edges (LLM, evidence quoted from both blocks)

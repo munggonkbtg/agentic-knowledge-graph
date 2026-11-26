@@ -8,6 +8,7 @@ Graph signals (layers 0-2, each its own ranked list):
 * broken_reference  the block cites the changed section or heading anchor and
                 that target no longer exists in the document's version after
                 the upload (renamed heading, removed section): a rule, no LLM
+* depends       a DEPENDS edge (layer 4) joins the block and the changed block
 * cite_section  the block has a REFERENCES edge to the changed document whose
                 cited section is the changed block's section (Thai มาตรา / ข้อ,
                 English #anchor of the heading)
@@ -41,7 +42,7 @@ from kg.layer2_entities import EntityMatcher, block_share, body_block_counts, bu
 from kg.values import AttachedValue, Value, attach_values, extract_values
 
 RRF_K = 60
-SIGNALS = ("broken_reference", "cite_section", "value", "entity", "cite_document")
+SIGNALS = ("broken_reference", "cite_section", "depends", "value", "entity", "cite_document")
 _SECTION_HEAD = re.compile(r"^(มาตรา|ข้อ|หมวด|ส่วน)([0-9]+(?:/[0-9]+)?)")
 
 
@@ -115,7 +116,14 @@ class GraphView:
     non-hub entities and attached values of every body block."""
 
     def __init__(self, docs: list[ParsedDocument], layer1_cfg, hub_cut: float | None,
-                 manual: list[dict] = ()) -> None:
+                 manual: list[dict] = (), merges: dict[str, str] | None = None,
+                 depends: list[tuple[str, str]] = ()) -> None:
+        self.canonical = dict(merges or {})
+        self.depends: dict[str, set[str]] = defaultdict(set)
+        for a, b in depends:
+            self.depends[a].add(b)
+            self.depends[b].add(a)
+        self.ref_conf: dict[tuple[str, str, str], float] = {}
         entries = []
         for d in docs:
             names = {PurePosixPath(d.version.source_url).name} if d.version.source_url else set()
@@ -151,10 +159,18 @@ class GraphView:
         from the current versions only to read entities in the change text (the
         old and new block), with the same rules and manual file as the graph."""
         view = cls.__new__(cls)
+        view.canonical = dict(edges.get("merges", {}))
+        view.depends = defaultdict(set)
+        for a, b in edges.get("depends", []):
+            view.depends[a].add(b)
+            view.depends[b].add(a)
         view.refs = defaultdict(list)
+        view.ref_conf = {}
         for r in edges["refs"]:
-            view.refs[r["target"]].append(
-                (r["uid"], compact(r["cited_section"] or "")[0].lower()))
+            cited = compact(r["cited_section"] or "")[0].lower()
+            view.refs[r["target"]].append((r["uid"], cited))
+            if r.get("confidence") is not None:
+                view.ref_conf[(r["uid"], r["target"], cited)] = float(r["confidence"])
         view.targets = {d.document.doc_key: citable_targets(d) for d in docs}
         view.registry = build_registry(docs, manual)
         view.matcher = EntityMatcher(view.registry)
@@ -174,8 +190,9 @@ class GraphView:
             b = view.blocks.get(m["uid"])
             if b is None or m["hub"]:
                 continue
-            b.entities.add(m["entity"])
-            b.values += values_of(m, m["entity"])
+            eid = view.canonical.get(m["entity"], m["entity"])
+            b.entities.add(eid)
+            b.values += values_of(m, eid)
         for r in edges["loose"]:
             b = view.blocks.get(r["uid"])
             if b is not None:
@@ -183,7 +200,11 @@ class GraphView:
         return view
 
     def facts(self, text: str, language: str) -> tuple[set[str], list[AttachedValue]]:
+        """Non-hub entities (canonical after layer 3 merges) and attached values."""
         spans = self.matcher.find_spans(text, language)
+        canon = getattr(self, "canonical", {})
+        if canon:
+            spans = [(canon.get(e, e), sf, a, b) for e, sf, a, b in spans]
         ents = {s[0] for s in spans} - self.hubs
         return ents, attach_values(extract_values(text, language), spans, self.hubs)
 
@@ -202,11 +223,16 @@ def graph_signals(view: GraphView, change: ChangeItem, candidates: set[str],
         if uid not in candidates:
             continue
         if (key and _cites(cited, key.lower())) or (anchor and cited == anchor):
-            out["cite_section"][uid] = 1.0
+            # edge confidence: a citation rejected in review ranks lower (step 15)
+            conf = view.ref_conf.get((uid, change.doc_key, cited), 1.0)
+            out["cite_section"][uid] = max(out["cite_section"].get(uid, 0.0), conf)
             if after is not None and not target_exists(cited, after):
                 out["broken_reference"][uid] = 1.0
         elif cited == "":
             out["cite_document"][uid] = 1.0
+    for uid in view.depends.get(change.block_uid, ()):
+        if uid in candidates:
+            out["depends"][uid] = 1.0
     old_e, old_v = view.facts(change.old_text, change.language)
     new_e, new_v = view.facts(change.new_text, change.language)
     ents = old_e | new_e

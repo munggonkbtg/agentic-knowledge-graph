@@ -1,7 +1,8 @@
 """All LLM calls go through this module (M4 step 4).
 
-* Runtime: a local Ollama server (`config.yaml` llm section). No key is needed;
-  a runtime that needs one would read it from an environment variable.
+* Runtime (`config.yaml` llm.runtime): a local Ollama server (no key), or
+  OpenRouter's API (key from the environment variable named in
+  llm.api_key_env; document text is sent to OpenRouter and the model provider).
 * Output: JSON constrained by a JSON schema (Ollama structured outputs) and
   validated with pydantic. Invalid JSON is retried `max_retries` times, then
   returned as a failure; a failure is never written to the graph.
@@ -52,6 +53,24 @@ class ImpactVerdict(BaseModel):
     evidence: str = Field(max_length=600)  # quoted from the candidate passage
 
 
+class MergeVerdict(BaseModel):
+    """Layer 3: are two entity names the same thing?"""
+
+    model_config = ConfigDict(extra="forbid")
+    verdict: Literal["same", "different", "unsure"]
+    reason: str = Field(max_length=600)
+
+
+class DependsVerdict(BaseModel):
+    """Layer 4: does one passage use a fact stated in the other without citing it?"""
+
+    model_config = ConfigDict(extra="forbid")
+    direction: Literal["a_on_b", "b_on_a", "none"]
+    fact: str = Field(max_length=400)
+    evidence_dependent: str = Field(max_length=600)  # quoted from the dependent passage
+    evidence_source: str = Field(max_length=600)     # quoted from the passage it relies on
+
+
 @dataclass
 class CallResult:
     mentions: list[ExtractedMention] | None  # None = failure after all retries
@@ -64,6 +83,11 @@ class CallResult:
     thinking_chars: int = 0
     errors: list[str] = field(default_factory=list)
     data: BaseModel | None = None  # the validated reply
+
+
+class LLMUnavailable(RuntimeError):
+    """The model cannot answer at all (bad key, no credits, forbidden): retrying
+    or continuing a run would only record failures, so the run stops."""
 
 
 # A transport takes the request body and returns Ollama's /api/chat response.
@@ -82,6 +106,74 @@ def ollama_transport(settings: LLMSettings) -> Transport:
     return send
 
 
+def openrouter_transport(settings: LLMSettings, env_file: Path | None = Path(".env")) -> Transport:
+    """OpenRouter's OpenAI-style chat API. Takes the same request the client
+    builds for Ollama and returns the reply in Ollama's shape, so caching,
+    validation and retries are unchanged.
+
+    * The key is read from the environment variable named in
+      `llm.api_key_env` (a local .env is loaded into the environment if present);
+      it is sent only in the Authorization header and never logged.
+    * JSON is constrained by the schema (`response_format` json_schema, strict)
+      and `provider.require_parameters` routes only to providers that support it.
+    * `provider.data_collection` (default "deny") routes only to providers that
+      do not store or train on the data.
+    * Reasoning follows `llm.think` (off by default)."""
+    import os
+
+    from dotenv import load_dotenv
+
+    from kg.config import MissingEnvError
+
+    if env_file is not None and env_file.exists():
+        load_dotenv(env_file, override=False)
+    key = os.environ.get(settings.api_key_env)
+    if not key:
+        raise MissingEnvError(f"Missing environment variable {settings.api_key_env} "
+                              "(the OpenRouter API key); put it in .env.")
+    url = settings.endpoint.rstrip("/") + "/chat/completions"
+
+    def send(body: dict) -> dict:
+        payload = {
+            "model": body["model"], "messages": body["messages"],
+            "temperature": body["options"]["temperature"],
+            "max_tokens": settings.max_tokens,
+            "response_format": {"type": "json_schema", "json_schema": {
+                "name": "answer", "strict": True, "schema": body["format"]}},
+            "reasoning": {"enabled": bool(body.get("think"))},
+            "provider": {"require_parameters": True,
+                         "data_collection": settings.data_collection},
+        }
+        req = urllib.request.Request(
+            url, data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}",
+                     "X-Title": "kg-pipeline"})
+        try:
+            with urllib.request.urlopen(req, timeout=settings.timeout_seconds) as r:
+                reply = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:300]
+            if e.code in (401, 402, 403):
+                raise LLMUnavailable(f"OpenRouter HTTP {e.code}: {detail}") from None
+            raise OSError(f"OpenRouter HTTP {e.code}: {detail}") from None
+        if "error" in reply:
+            raise OSError(f"OpenRouter error: {str(reply['error'])[:300]}")
+        msg = reply["choices"][0]["message"]
+        usage = reply.get("usage") or {}
+        return {"message": {"content": msg.get("content") or "",
+                            "thinking": msg.get("reasoning") or ""},
+                "prompt_eval_count": usage.get("prompt_tokens", 0),
+                "eval_count": usage.get("completion_tokens", 0)}
+
+    return send
+
+
+def make_transport(settings: LLMSettings) -> Transport:
+    if settings.runtime == "openrouter":
+        return openrouter_transport(settings)
+    return ollama_transport(settings)
+
+
 class LLMClient:
     def __init__(self, settings: LLMSettings, root: Path = Path("."),
                  transport: Transport | None = None) -> None:
@@ -89,7 +181,7 @@ class LLMClient:
         prompt = (root / settings.prompt_file).read_text(encoding="utf-8")
         self.system_prompt = prompt
         self.prompt_key = f"{settings.prompt_version}#{_sha(prompt)[:12]}"
-        self.transport = transport or ollama_transport(settings)
+        self.transport = transport or make_transport(settings)
         path = root / settings.cache_file
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
@@ -132,7 +224,7 @@ class LLMClient:
             try:
                 reply = self.transport(self._body(user_content, schema))
             except (urllib.error.URLError, TimeoutError, OSError) as e:
-                res.errors.append(f"transport: {type(e).__name__}")
+                res.errors.append(f"transport: {type(e).__name__}: {str(e)[:200]}")
                 continue
             res.tokens_in += int(reply.get("prompt_eval_count") or 0)
             res.tokens_out += int(reply.get("eval_count") or 0)
@@ -177,6 +269,41 @@ class LLMClient:
                                         "prompt_version": settings.check_prompt_version,
                                         "num_ctx": settings.check_num_ctx})
         return cls(s, root, transport)
+
+    def confirm_merge(self, a: dict, b: dict, use_cache: bool = True) -> CallResult:
+        """Layer 3: do two entity names refer to the same thing? a, b: name, type,
+        language and up to two short example passages. data: MergeVerdict."""
+        def show(e: dict, label: str) -> str:
+            ctx = "\n".join(f"  - {x}" for x in e.get("examples", [])[:2])
+            return (f"{label}: \"{e['name']}\" (type {e['type']}, language {e['language']})"
+                    + (f"\n  used in:\n{ctx}" if ctx else ""))
+        user = show(a, "NAME A") + "\n\n" + show(b, "NAME B")
+        return self._ask(user, user, MergeVerdict, use_cache)
+
+    def judge_dependency(self, a_text: str, b_text: str, a_context: str, b_context: str,
+                         use_cache: bool = True) -> CallResult:
+        """Layer 4: does one passage use a fact stated in the other without citing
+        it? data: DependsVerdict."""
+        user = (f"PASSAGE A ({a_context}):\n{a_text}\n\n"
+                f"PASSAGE B ({b_context}):\n{b_text}")
+        return self._ask(user, user, DependsVerdict, use_cache)
+
+    @classmethod
+    def for_task(cls, settings: LLMSettings, task: str, root: Path = Path("."),
+                 transport: Transport | None = None) -> LLMClient:
+        """A client with the prompt and context size of one task: mentions (the
+        default settings), check, merge or depends."""
+        if task == "mentions":
+            return cls(settings, root, transport)
+        update = {"check": {"prompt_file": settings.check_prompt_file,
+                            "prompt_version": settings.check_prompt_version,
+                            "num_ctx": settings.check_num_ctx},
+                  "merge": {"prompt_file": settings.merge_prompt_file,
+                            "prompt_version": settings.merge_prompt_version},
+                  "depends": {"prompt_file": settings.depends_prompt_file,
+                              "prompt_version": settings.depends_prompt_version,
+                              "num_ctx": settings.depends_num_ctx}}[task]
+        return cls(settings.model_copy(update=update), root, transport)
 
 
 def _sha(text: str) -> str:

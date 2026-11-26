@@ -100,7 +100,12 @@ class LLMSettings(BaseModel):
     it is read from an environment variable, never from this file."""
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
-    runtime: str = "ollama"
+    runtime: Literal["ollama", "openrouter"] = "ollama"
+    # openrouter: the key is read from this environment variable (never from config)
+    api_key_env: str = "OPENROUTER_API_KEY"
+    # openrouter: "deny" routes only to providers that do not store or train on data
+    data_collection: Literal["deny", "allow"] = "deny"
+    max_tokens: int = Field(default=1024, ge=16)  # cap on each answer (openrouter)
     endpoint: str = "http://localhost:11434"
     model: str = "qwen3.5:4b-q4_K_M"
     num_ctx: int = Field(default=2048, ge=256)
@@ -117,6 +122,12 @@ class LLMSettings(BaseModel):
     check_prompt_version: str = "impact-check-v1"
     check_prompt_file: Path = Path("prompts/impact_check_v1.md")
     check_num_ctx: int = Field(default=4096, ge=256)
+    # layer 3 (entity merge) and layer 4 (DEPENDS) prompts
+    merge_prompt_version: str = "merge-v1"
+    merge_prompt_file: Path = Path("prompts/merge_v1.md")
+    depends_prompt_version: str = "depends-v1"
+    depends_prompt_file: Path = Path("prompts/depends_v1.md")
+    depends_num_ctx: int = Field(default=4096, ge=256)
 
 
 class ImpactSettings(BaseModel):
@@ -130,6 +141,32 @@ class ImpactSettings(BaseModel):
     # human review (step 14): sheets and the review history live with the labels,
     # so `kg backup-labels` covers them (not in git)
     review_dir: Path = Path("data/labels/reviews")
+    # step 15: a rejected review multiplies the confidence of the edges behind it
+    review_reject_factor: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class Layer3Settings(BaseModel):
+    """Entity merge (M6). Candidates by name containment and e5 similarity of the
+    names; the local LLM confirms; only "same" merges, same type only."""
+
+    model_config = ConfigDict(extra="forbid")
+    rule_version: str = "L3-v1"
+    min_similarity: float = Field(default=0.85, ge=0.0, le=1.0)
+    top_k: int = Field(default=3, ge=1)  # nearest names per entity sent to the LLM
+    min_containment_chars: int = Field(default=4, ge=1)
+    confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+
+
+class Layer4Settings(BaseModel):
+    """DEPENDS (M7). Candidate pairs: shared non-hub entity + nearest blocks by e5,
+    capped per block; only the most central blocks within the budget."""
+
+    model_config = ConfigDict(extra="forbid")
+    rule_version: str = "L4-v1"
+    nearest_k: int = Field(default=5, ge=0)
+    max_pairs_per_block: int = Field(default=5, ge=1)
+    central_share: float = Field(default=0.2, gt=0.0, le=1.0)  # 0.2 = variant B, 1.0 = C
+    confidence: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
 class AppConfig(BaseModel):
@@ -145,6 +182,8 @@ class AppConfig(BaseModel):
     layer2: Layer2Settings = Layer2Settings()
     llm: LLMSettings = LLMSettings()
     impact: ImpactSettings = ImpactSettings()
+    layer3: Layer3Settings = Layer3Settings()
+    layer4: Layer4Settings = Layer4Settings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

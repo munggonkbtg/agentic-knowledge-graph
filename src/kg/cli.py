@@ -23,6 +23,7 @@ from kg.layer2_entities import (
     flag_hubs,
     load_manual,
 )
+from kg.llm import LLMUnavailable
 from kg.store import Store
 
 app = typer.Typer(help="Knowledge-graph pipeline (research prototype).", no_args_is_help=True)
@@ -38,6 +39,11 @@ def _open_store(config_path: Path) -> Store:
         typer.secho(str(e), fg="red", err=True)
         raise typer.Exit(2) from None
     return Store(creds, database=cfg.neo4j.database)
+
+
+def _llm_unavailable(e: Exception) -> None:
+    typer.secho(f"The LLM cannot answer, stopping: {e}", fg="red", err=True)
+    raise typer.Exit(1)
 
 
 def _connection_error(e: Exception) -> None:
@@ -128,6 +134,12 @@ def build(
     if layer == 2:
         _build_layer2(config)
         return
+    if layer == 3:
+        build_layer3(config)
+        return
+    if layer == 4:
+        build_layer4(config)
+        return
     if layer != 0:
         typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
         raise typer.Exit(2)
@@ -200,6 +212,136 @@ def _build_layer1(config: Path) -> None:
         return
     typer.secho(f"Layer 1 ({cfg.layer1.rule_version}) written: {total} references; "
                 f"{closed} edges from older rule versions closed (valid_to set).", fg="green")
+
+
+def build_layer3(config: Path) -> dict[str, int]:
+    """Layer 3 (M6): merge duplicate entities (Thai-English included). Candidate
+    pairs by name containment and e5 name similarity, confirmed by the local LLM,
+    written reversibly (ALIAS_OF to the canonical entity, merged_into). A CSV of
+    every pair and verdict goes to `impact.report_dir`. Needs the `embed` group."""
+    import csv as _csv
+
+    from kg.embedding import Embedder
+    from kg.layer3_merge import MergeEntity, candidate_pairs, merge_entities
+    from kg.llm import LLMClient
+
+    cfg = load_config(config)
+    s = cfg.layer3
+    run_at = datetime.now(timezone.utc)
+    try:
+        with _open_store(config) as store:
+            rows = store.entities_for_merge()
+            ents = [MergeEntity(r["entity_id"], r["name"], r["entity_type"], r["language"],
+                                r["mentions"], r["hub"], tuple(r["sources"]),
+                                list(r["examples"])) for r in rows]
+            emb = Embedder(cfg.embedding)
+            pairs = candidate_pairs(ents, lambda names: emb.embed(names, "query"),
+                                    s.min_similarity, s.top_k, s.min_containment_chars)
+            typer.echo(f"  {len(ents)} entities, {len(pairs)} candidate pairs")
+            client = LLMClient.for_task(cfg.llm, "merge")
+
+            def confirm(a, b):
+                return client.confirm_merge(
+                    {"name": a.name, "type": a.entity_type, "language": a.language,
+                     "examples": a.examples},
+                    {"name": b.name, "type": b.entity_type, "language": b.language,
+                     "examples": b.examples})
+
+            res = merge_entities(ents, pairs, confirm)
+            reasons = {}
+            for (a, b), why in res.reasons.items():
+                for m in (a, b):
+                    if m in res.canonical:
+                        reasons.setdefault(m, why)
+            written = store.write_merges(res.canonical, reasons, s.rule_version,
+                                         client.s.model, client.prompt_key, s.confidence, run_at)
+            client.close()
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return {}
+    except LLMUnavailable as e:
+        _llm_unavailable(e)
+    name = {e.entity_id: e.name for e in ents}
+    cfg.impact.report_dir.mkdir(parents=True, exist_ok=True)
+    out = cfg.impact.report_dir / f"merges_{datetime.now():%Y%m%d-%H%M%S}.csv"
+    with out.open("w", encoding="utf-8-sig", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(["entity_a", "name_a", "entity_b", "name_b", "candidate_by", "verdict",
+                    "reason", "merged_into"])
+        for p in res.pairs:
+            v = res.verdicts.get((p.a, p.b), "")
+            w.writerow([p.a, name[p.a], p.b, name[p.b], p.reason, v,
+                        res.reasons.get((p.a, p.b), ""),
+                        res.canonical.get(p.a) or res.canonical.get(p.b) or ""])
+    from collections import Counter as _C
+    typer.secho(f"Layer 3 ({s.rule_version}): {len(pairs)} pairs checked "
+                f"({dict(_C(res.verdicts.values()))}), {written['merged']} entities merged, "
+                f"{written['undone']} earlier merges undone; {res.calls} new LLM calls -> {out}",
+                fg="green")
+    return {"pairs": len(pairs), "merged": written["merged"]}
+
+
+def build_layer4(config: Path, only: set[str] | None = None) -> dict[str, int]:
+    """Layer 4 (M7): DEPENDS edges. The most central current blocks (config
+    layer4.central_share) or the given blocks (`only`, e.g. new / edited blocks)
+    are paired with blocks sharing a non-hub canonical entity and their nearest
+    blocks by e5 (capped); the local LLM judges each pair; an edge is written only
+    when its two quotes are found in the blocks. A CSV of the edges goes to
+    `impact.report_dir`. Needs the vector index (`kg embed`)."""
+    import csv as _csv
+
+    from kg.layer4_depends import DepBlock, candidate_pairs, find_depends, select_blocks
+    from kg.llm import LLMClient
+
+    cfg = load_config(config)
+    s = cfg.layer4
+    run_at = datetime.now(timezone.utc)
+    t0 = datetime.now()
+    try:
+        with _open_store(config) as store:
+            current = store.current_body_blocks()
+            edges = store.impact_edges()
+            canon = store.entity_merges()
+            blocks = {b["uid"]: DepBlock(b["uid"], b["text"], b["doc_key"],
+                                         f"{b['doc_key']} > {(b['block_id'] or '::_').split('::')[1]}")
+                      for b in current}
+            for m in edges["mentions"]:
+                if m["uid"] in blocks and not m["hub"]:
+                    blocks[m["uid"]].entities.add(canon.get(m["entity"], m["entity"]))
+            for r in edges["refs"]:
+                if r["uid"] in blocks:
+                    blocks[r["uid"]].refs_out += 1
+            processed = select_blocks(blocks, s.central_share, only)
+            cur = set(blocks)
+            pairs = candidate_pairs(blocks, processed,
+                                    lambda u: store.nearest_blocks(u, s.nearest_k, cur),
+                                    s.nearest_k, s.max_pairs_per_block)
+            typer.echo(f"  {len(blocks)} current blocks, {len(processed)} processed, "
+                       f"{len(pairs)} candidate pairs")
+            client = LLMClient.for_task(cfg.llm, "depends")
+            res = find_depends(blocks, pairs, lambda a, b: client.judge_dependency(
+                a.text, b.text, a.context, b.context))
+            written = store.write_depends(res.edges, processed, s.rule_version, client.s.model,
+                                          client.prompt_key, s.confidence, run_at)
+            tokens = sum(c.tokens_in + c.tokens_out for c in client.log if not c.cached)
+            client.close()
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return {}
+    except LLMUnavailable as e:
+        _llm_unavailable(e)
+    cfg.impact.report_dir.mkdir(parents=True, exist_ok=True)
+    out = cfg.impact.report_dir / f"depends_{datetime.now():%Y%m%d-%H%M%S}.csv"
+    with out.open("w", encoding="utf-8-sig", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(["dependent", "source", "fact", "evidence_dependent", "evidence_source"])
+        for e in res.edges:
+            w.writerow([e.dependent, e.source, e.fact, e.evidence_dependent, e.evidence_source])
+    minutes = (datetime.now() - t0).total_seconds() / 60
+    typer.secho(f"Layer 4 ({s.rule_version}): {len(pairs)} pairs, {dict(res.stats)}, "
+                f"{written['written']} DEPENDS written, {written['closed']} older closed; "
+                f"{tokens} tokens, {minutes:.0f} min -> {out}", fg="green")
+    return {"pairs": len(pairs), "edges": written["written"]}
 
 
 def _build_layer2(config: Path) -> None:
@@ -436,6 +578,8 @@ def impact(
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
+    except LLMUnavailable as e:
+        _llm_unavailable(e)
     if checker is not None:
         calls = [c for c in checker.log if not c.cached]
         typer.echo(f"  LLM check: {len(checker.log)} checks ({len(calls)} new), "
@@ -464,6 +608,48 @@ def impact(
         typer.secho(f"Review sheet: {n_changes} flagged changes, {len(sheet_rows)} rows -> "
                     f"{sheet}\n  Fill `decision` ({' / '.join(['needs_update', 'review_only', 'not_affected'])}) "
                     "and `note`, then run `kg review-import <sheet>`.", fg="green")
+
+
+@app.command("full-update")
+def full_update(config: Path = ConfigOption) -> None:
+    """Workflow step 15: close the open REFERENCES, MENTIONS and DEPENDS edges of
+    blocks that are in no current version (valid_to, not deleted), then apply the
+    review history to the edges behind reviewed items (see `kg review-apply`)."""
+    cfg = load_config(config)
+    now = datetime.now(timezone.utc)
+    try:
+        with _open_store(config) as store:
+            closed = store.close_edges_of_old_blocks(now)
+            typer.echo(f"  closed edges of old blocks: {closed or 'none'}")
+            _apply_reviews(store, cfg, now)
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho("Full update done.", fg="green")
+
+
+def _apply_reviews(store, cfg, now) -> None:
+    from kg.review import apply_reviews
+
+    res = apply_reviews(store, cfg.impact.review_dir / "review_history.csv",
+                        cfg.impact.review_reject_factor, now)
+    typer.echo(f"  reviews: {res['decisions']} decisions, {res['rejected_edges']} edges "
+               f"rejected, {res['approved_edges']} approved, {res['without_edges']} decisions "
+               "with no edge behind them (reached by entity, value or hybrid search)")
+
+
+@app.command("review-apply")
+def review_apply(config: Path = ConfigOption) -> None:
+    """Apply the review history to the graph: edges behind a not_affected decision
+    get review_status = rejected and a lower confidence (x impact.review_reject_factor);
+    behind needs_update / review_only, approved. Idempotent."""
+    cfg = load_config(config)
+    try:
+        with _open_store(config) as store:
+            _apply_reviews(store, cfg, datetime.now(timezone.utc))
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
 
 
 @app.command("review-import")
@@ -621,9 +807,10 @@ def upload(
     as_of: datetime | None = typer.Option(
         None, "--as-of", help="When the upload happens (valid_from of the new versions)."),
     config: Path = ConfigOption,
-) -> None:
+) -> list[str]:
     """Upload new document versions: diff each file against its current version in the
-    graph, then write the new version, reusing the node of every unchanged block."""
+    graph, then write the new version, reusing the node of every unchanged block.
+    Returns the doc_keys written (used by `kg ingest`)."""
     if layer != 0:
         typer.secho(f"Layer {layer} is not implemented yet.", fg="red", err=True)
         raise typer.Exit(2)
@@ -677,9 +864,184 @@ def upload(
                            f"{res['removed']} removed blocks listed")
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
-        return
+        return []
     _report_queue(cfg, idents)
     typer.secho(f"Uploaded {len(todo)} of {len(files)} files.", fg="green")
+    return [d.document.doc_key for d in todo]
+
+
+@app.command()
+def doctor(config: Path = ConfigOption) -> None:
+    """Check that everything a run needs is in place: config, Neo4j credentials
+    (names only) and connection, schema and vector index, prompt files, writable
+    data folders, the embedding model, and the local LLM in Ollama."""
+    import json as _json
+    import urllib.request
+
+    ok = True
+
+    def report(name: str, good: bool, detail: str = "") -> None:
+        nonlocal ok
+        ok &= good
+        typer.secho(f"  [{'ok' if good else 'FAIL'}] {name}" + (f": {detail}" if detail else ""),
+                    fg="green" if good else "red")
+
+    try:
+        cfg = load_config(config)
+        report("config.yaml", True)
+    except Exception as e:  # noqa: BLE001
+        report("config.yaml", False, type(e).__name__)
+        raise typer.Exit(1) from None
+    try:
+        creds = load_neo4j_credentials()
+        report("Neo4j credentials", True, "NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD set")
+        with Store(creds, cfg.neo4j.database) as store:
+            store.ping()
+            report("Neo4j connection", True)
+            names = store.schema_names()
+            report("schema", "block_block_uid" in names, "run `kg init-schema`"
+                   if "block_block_uid" not in names else "")
+            report("vector index", "block_embedding" in names, "run `kg init-schema`"
+                   if "block_embedding" not in names else "")
+    except MissingEnvError as e:
+        report("Neo4j credentials", False, str(e))
+    except Exception as e:  # noqa: BLE001
+        report("Neo4j connection", False, f"{type(e).__name__} (is the database started?)")
+    for name in ("prompt_file", "check_prompt_file", "merge_prompt_file", "depends_prompt_file"):
+        f = getattr(cfg.llm, name)
+        report(f"prompt {f}", Path(f).exists())
+    for folder in (cfg.impact.report_dir, cfg.impact.review_dir, cfg.llm.cache_file.parent,
+                   Path("data/labels")):
+        try:
+            Path(folder).mkdir(parents=True, exist_ok=True)
+            probe = Path(folder) / ".kg_write_test"
+            probe.write_text("x", encoding="utf-8")
+            probe.unlink()
+            report(f"writable {folder}", True)
+        except OSError as e:
+            report(f"writable {folder}", False, type(e).__name__)
+    try:
+        import sentence_transformers  # noqa: F401
+        report("embedding dependencies", True, "run with `uv run --group embed`")
+    except ImportError:
+        report("embedding dependencies", False, "use `uv run --group embed kg ...`")
+    if cfg.llm.runtime == "openrouter":
+        import os
+
+        from dotenv import load_dotenv
+
+        if Path(".env").exists():
+            load_dotenv(Path(".env"), override=False)
+        key = os.environ.get(cfg.llm.api_key_env)
+        report(f"LLM key {cfg.llm.api_key_env}", bool(key), "" if key else "put it in .env")
+        try:
+            base = cfg.llm.endpoint.rstrip("/")
+            with urllib.request.urlopen(base + "/models", timeout=15) as r:
+                ids = {m["id"] for m in _json.loads(r.read().decode())["data"]}
+            report(f"LLM model {cfg.llm.model}", cfg.llm.model in ids,
+                   "on OpenRouter" if cfg.llm.model in ids else "not listed by OpenRouter")
+            if key:  # key check: no document text is sent
+                req = urllib.request.Request(base + "/key",
+                                             headers={"Authorization": f"Bearer {key}"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    _json.loads(r.read().decode())
+                report("OpenRouter key accepted", True,
+                       "document text will be sent to OpenRouter and the model provider")
+                req = urllib.request.Request(base + "/credits",
+                                             headers={"Authorization": f"Bearer {key}"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    c = _json.loads(r.read().decode())["data"]
+                left = float(c.get("total_credits") or 0) - float(c.get("total_usage") or 0)
+                report("OpenRouter credits", left > 0,
+                       f"{left:.2f} USD left" if left > 0 else
+                       "none left: buy credits at openrouter.ai (the API answers HTTP 402)")
+        except Exception as e:  # noqa: BLE001
+            report("OpenRouter", False, type(e).__name__)
+    else:
+        try:
+            with urllib.request.urlopen(cfg.llm.endpoint.rstrip("/") + "/api/tags",
+                                        timeout=10) as r:
+                models = {m["name"] for m in _json.loads(r.read().decode())["models"]}
+            report("Ollama", True, cfg.llm.endpoint)
+            report(f"LLM model {cfg.llm.model}", cfg.llm.model in models,
+                   "" if cfg.llm.model in models else f"run `ollama pull {cfg.llm.model}`")
+        except Exception as e:  # noqa: BLE001
+            report("Ollama", False, f"{type(e).__name__} (is Ollama running?)")
+    if not ok:
+        raise typer.Exit(1)
+    typer.secho("All checks passed.", fg="green")
+
+
+@app.command()
+def ingest(
+    corpus: Path | None = typer.Option(None, "--corpus", help="First build: a folder of .md "
+                                       "files that make up the store"),
+    event: Path | None = typer.Option(None, "--event", help="An upload: a folder with new "
+                                      "versions or new documents"),
+    check: bool = typer.Option(False, "--check", help="LLM check of the impact candidates"),
+    review: bool = typer.Option(False, "--review", help="Write a review sheet (needs --check)"),
+    config: Path = ConfigOption,
+) -> None:
+    """Run the whole workflow in order (diagram v5).
+
+    --corpus DIR: init-schema, layer 0 with identification, layers 1-2,
+    embeddings, layer 3 (entity merge) and layer 4 (DEPENDS).
+
+    --event DIR: upload + diff (steps 8-9), light update: layers 1-2 and
+    embeddings (step 10), impact with optional LLM check and review sheet (steps
+    11-14), full update: close edges of old blocks, apply reviews, layer 3, layer
+    4 for the new and edited blocks (step 15).
+
+    Needs the `embed` dependency group: uv run --group embed kg ingest ..."""
+    if (corpus is None) == (event is None):
+        typer.secho("Give exactly one of --corpus or --event.", fg="red", err=True)
+        raise typer.Exit(2)
+    if review and not check:
+        typer.secho("--review needs --check.", fg="red", err=True)
+        raise typer.Exit(2)
+    t0 = datetime.now()
+
+    def stage(name: str) -> None:
+        typer.secho(f"\n== {name}", bold=True)
+
+    if corpus is not None:
+        stage("schema")
+        init_schema(config=config)
+        stage("layer 0: identify and parse")
+        build(layer=0, corpus=corpus, as_of=None, config=config)
+        stage("layer 1: references")
+        _build_layer1(config)
+        stage("layer 2: entities and values")
+        _build_layer2(config)
+        stage("embeddings")
+        embed(config=config)
+        stage("layer 3: entity merge")
+        build_layer3(config)
+        stage("layer 4: DEPENDS")
+        build_layer4(config)
+    else:
+        stage("steps 8-9: identify, upload, diff")
+        keys = upload(event=event, layer=0, as_of=None, config=config)
+        if not keys:
+            typer.secho("Nothing uploaded; stopping.", fg="yellow")
+            return
+        stage("step 10: light update (layers 1-2, embeddings)")
+        _build_layer1(config)
+        _build_layer2(config)
+        embed(config=config)
+        stage("steps 11-14: impact" + (" + LLM check" if check else "")
+              + (" + review sheet" if review else ""))
+        impact(doc=keys, check=check, review=review, config=config)
+        stage("step 15: full update")
+        full_update(config=config)
+        build_layer3(config)
+        with _open_store(config) as store:
+            new_blocks = {c["uid"] for k in keys if (d := store.version_changes(k))
+                          for c in d["changed"]}
+        typer.echo(f"  layer 4 for {len(new_blocks)} new / edited blocks")
+        build_layer4(config, only=new_blocks)
+    minutes = (datetime.now() - t0).total_seconds() / 60
+    typer.secho(f"\nIngest done in {minutes:.0f} min.", fg="green")
 
 
 @app.command()

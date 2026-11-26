@@ -162,3 +162,32 @@ def test_citation_of_a_removed_section_is_broken_and_subsections_count(tmp_path)
     assert target_exists("มาตรา118(6)", t) and target_exists("มาตรา118วรรคหนึ่ง", t)
     assert not target_exists("มาตรา119", t) and not target_exists("มาตรา1181", t)
     assert target_exists("", t)  # a document-level citation is never broken
+
+
+def test_merges_depends_and_rejected_citations_in_the_signals(tmp_path):
+    act = _doc(tmp_path, "act.md", "t-act", "พระราชบัญญัติทดสอบ พ.ศ. 2541", "th",
+               "## หมวด 11 ค่าชดเชย\n\n### มาตรา ๑๑๘\n\n"
+               "ค่าชดเชย หมายความว่า เงินที่นายจ้างจ่ายให้แก่ลูกจ้างเมื่อเลิกจ้าง\n")
+    guide = _doc(tmp_path, "guide.md", "t-guide", "Guide", "en",
+                 "## Severance Pay\n\nSeverance pay is paid when employment ends.\n\n"
+                 "## Notes\n\nKeep your contract.\n\n"
+                 "## Cites\n\nSee มาตรา ๑๑๘ แห่งพระราชบัญญัติทดสอบ พ.ศ. ๒๕๔๑.\n")
+    base = GraphView([act, guide], CFG.layer1, hub_cut=None)
+    th = base.registry.get("th", "ค่าชดเชย").entity_id
+    en = base.registry.get("en", "Severance Pay").entity_id
+    uid = {pb.block.block_id.split("::")[1]: pb.block.block_uid for pb in guide.blocks}
+    changed = act.blocks[0].block.block_uid
+    change = ChangeItem("X", "t-act", "หมวด 11 ค่าชดเชย > มาตรา 118",
+                        "ค่าชดเชย หมายความว่า เงินที่นายจ้างจ่ายให้แก่ลูกจ้างเมื่อเลิกจ้าง",
+                        "ค่าชดเชย หมายความว่า เงินที่จ่ายเมื่อเลิกจ้าง", "th", changed)
+    cands = set(uid.values())
+    # without the merge the Thai change and the English block share no entity
+    assert uid["Severance Pay"] not in graph_signals(base, change, cands)["entity"]
+    merged = GraphView([act, guide], CFG.layer1, hub_cut=None, merges={en: th},
+                       depends=[(uid["Notes"], changed)])
+    sig = graph_signals(merged, change, cands)
+    assert uid["Severance Pay"] in sig["entity"]
+    assert sig["depends"] == {uid["Notes"]: 1.0}
+    # a citation rejected in review keeps its signal at a lower strength
+    merged.ref_conf[(uid["Cites"], "t-act", "มาตรา118")] = 0.5
+    assert graph_signals(merged, change, cands)["cite_section"][uid["Cites"]] == 0.5

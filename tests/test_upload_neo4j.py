@@ -397,3 +397,118 @@ def test_person_confirmation_is_recorded_on_has_version(store, prefix, tmp_path)
                    k=key).records[0]
     assert (r["c"], r["a"]) == ("person", "new")
     assert store.confirm_identification("no-such-hash", key, "new", T2) == 0
+
+
+def test_full_update_closes_edges_of_replaced_blocks_only(store, prefix, tmp_path):
+    from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor
+
+    key = prefix + "act"
+    body1 = "## หมวด 1\n\n### มาตรา ๑\n\nตามมาตรา ๒\n\n### มาตรา ๒\n\nตามมาตรา ๑ เดิม\n"
+    v1 = parse_file(_file(tmp_path, "a.md", key, "พระราชบัญญัติทดสอบ พ.ศ. 2541", body1),
+                    CFG.layer0, T1)
+    store.write_layer0(v1)
+    ext = ReferenceExtractor(Registry([RegistryEntry(key, v1.document.title, "th")]), CFG.layer1)
+    store.write_references(v1, ext.extract(v1), "test-A", T1)
+    (tmp_path / "v2").mkdir()
+    body2 = body1.replace("ตามมาตรา ๑ เดิม", "ตามมาตรา ๑ ใหม่ทั้งหมด แก้ไขแล้ว")
+    f2 = _file(tmp_path / "v2", "a.md", key, v1.document.title, body2)
+    _upload(store, [f2], T2)
+    # scoped to this test's documents: other data in the database is never touched
+    closed = store.close_edges_of_old_blocks(T2, doc_key_prefix=prefix)
+    assert closed.get("REFERENCES", 0) >= 1
+    rows = store._run(
+        """
+        MATCH (b:Block)-[r:REFERENCES]->() WHERE b.doc_key = $k
+        RETURN b.text AS text, r.valid_to IS NULL AS open, r.closed_reason AS why
+        """, k=key).records
+    by_text = {r["text"]: (r["open"], r["why"]) for r in rows}
+    assert by_text["ตามมาตรา ๒"] == (True, None)  # unchanged block reused: stays open
+    assert by_text["ตามมาตรา ๑ เดิม"] == (False, "block no longer current")
+    assert store.close_edges_of_old_blocks(T2, doc_key_prefix=prefix) == {}  # nothing left
+
+
+def test_rejected_review_lowers_confidence_of_the_citation_once(store, prefix, tmp_path):
+    import csv as _csv
+
+    from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor
+    from kg.review import HISTORY_COLUMNS, apply_reviews
+
+    act_key, reg_key = prefix + "act", prefix + "reg"
+    act = parse_file(_file(tmp_path, "act.md", act_key, "พระราชบัญญัติทดสอบ พ.ศ. 2541",
+                           "## หมวด 1\n\n### มาตรา ๑๑๘\n\nข้อความเดิม\n"), CFG.layer0, T1)
+    reg = parse_file(_file(tmp_path, "reg.md", reg_key, "ระเบียบทดสอบ",
+                           "## ข้อ 1\n\nตามมาตรา ๑๑๘ แห่งพระราชบัญญัติทดสอบ พ.ศ. ๒๕๔๑\n"),
+                     CFG.layer0, T1)
+    for d in (act, reg):
+        store.write_layer0(d)
+    ext = ReferenceExtractor(Registry([RegistryEntry(d.document.doc_key, d.document.title, "th")
+                                       for d in (act, reg)]), CFG.layer1)
+    store.write_references(reg, ext.extract(reg), "test-A", T1)
+    changed, cand = act.blocks[0].block.block_uid, reg.blocks[0].block.block_uid
+    hist = tmp_path / "review_history.csv"
+    with hist.open("w", encoding="utf-8-sig", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=HISTORY_COLUMNS)
+        w.writeheader()
+        w.writerow({"reviewed_at": "x", "sheet": "s", "review_id": "R0001",
+                    "document": act_key, "changed_block_uid": changed, "block_uid": cand,
+                    "decision": "not_affected", "label_source": "human_review"})
+
+    def conf():
+        r = store._run("MATCH (:Block {block_uid: $u})-[r:REFERENCES]->(:Document {doc_key: $d}) "
+                       "RETURN r.confidence AS c, r.review_status AS s", u=cand, d=act_key)
+        return [(x["c"], x["s"]) for x in r.records]
+
+    before = conf()[0][0]
+    for _ in range(2):  # applying twice changes nothing more
+        res = apply_reviews(store, hist, 0.5, T2)
+        assert res["rejected_edges"] == 1
+        assert conf() == [(before * 0.5, "rejected")]
+
+
+def test_merges_are_written_reversibly(store, prefix):
+    from kg.layer2_entities import EntityEntry
+
+    a = EntityEntry(prefix + "a", "Short Term Disability", "Concept", "en",
+                    {prefix + "short term disability"}, {"heading:x"})
+    b = EntityEntry(prefix + "b", "short-term disability claim", "Concept", "en",
+                    {prefix + "short-term disability claim"}, {"llm:x"})
+    try:
+        store.write_entity_registry([a, b], {}, "test-L2", T1)
+        rv = prefix + "L3"
+        res = store.write_merges({b.entity_id: a.entity_id}, {b.entity_id: "same benefit"},
+                                 rv, "m", "merge-v1#x", 0.6, T2)
+        assert res == {"merged": 1, "undone": 0}
+        assert store.entity_merges().get(b.entity_id) == a.entity_id
+        edge = store._run(
+            "MATCH (al:Alias)-[r:ALIAS_OF {rule_version: $rv}]->(e:Entity {entity_id: $a}) "
+            "RETURN al.surface AS s, r.method AS m, r.evidence_span AS ev, r.valid_to IS NULL AS open",
+            rv=rv, a=a.entity_id).records
+        assert [(x["s"], x["m"], x["ev"], x["open"]) for x in edge] == [
+            (prefix + "short-term disability claim", "llm", "same benefit", True)]
+        # a later run without the merge undoes it: property removed, edge closed
+        assert store.write_merges({}, {}, rv, "m", "merge-v1#x", 0.6, T2)["undone"] == 1
+        assert b.entity_id not in store.entity_merges()
+        assert store._run("MATCH ()-[r:ALIAS_OF {rule_version: $rv}]->() "
+                          "RETURN r.valid_to IS NULL AS open", rv=rv).records[0]["open"] is False
+    finally:
+        store.delete_entities(prefix)
+
+
+def test_depends_edges_with_both_quotes(store, prefix, tmp_path):
+    from kg.layer4_depends import DependsEdge
+
+    key = prefix + "pol"
+    doc = parse_file(_file(tmp_path, "p.md", key, "Policy", f"## A\n\n{P1}\n\n{P2}\n"), CFG.layer0, T1)
+    store.write_layer0(doc)
+    u1, u2 = [pb.block.block_uid for pb in doc.blocks]
+    e = DependsEdge(u2, u1, "leave length", "leave requests", "twenty days of paid leave")
+    rv = prefix + "L4"
+    assert store.write_depends([e], [u1, u2], rv, "m", "depends-v1#x", 0.6, T2) == {
+        "written": 1, "closed": 0}
+    assert store.write_depends([e], [u1, u2], rv, "m", "depends-v1#x", 0.6, T2)["written"] == 1
+    rows = store._run("MATCH (a:Block)-[r:DEPENDS]->(b:Block) WHERE a.doc_key = $k "
+                      "RETURN a.block_uid AS a, b.block_uid AS b, r.evidence_span AS ev, "
+                      "r.evidence_target AS tg, r.method AS m, r.prompt_version AS pv", k=key).records
+    assert [(r["a"], r["b"], r["ev"], r["tg"], r["m"]) for r in rows] == [
+        (u2, u1, "leave requests", "twenty days of paid leave", "llm")]
+    assert store.depends_between(u1, u2) and store.depends_between(u2, u1)

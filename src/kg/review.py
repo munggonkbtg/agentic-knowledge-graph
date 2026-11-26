@@ -29,7 +29,7 @@ SHEET_COLUMNS = [
 ]
 HISTORY_COLUMNS = [
     "reviewed_at", "sheet", "review_id", "document", "changed_block_uid", "block_uid",
-    "decision", "note", "rank", "rule", "llm_verdict", "label_source",
+    "decision", "note", "rank", "signals", "rule", "llm_verdict", "label_source",
 ]
 
 
@@ -115,7 +115,56 @@ def import_decisions(sheet: Path, history: Path, now: datetime) -> dict[str, int
                         "review_id": r["review_id"], "document": r["document"],
                         "changed_block_uid": r["changed_block_uid"],
                         "block_uid": r["block_uid"], "decision": r["decision"],
-                        "note": r.get("note", ""), "rank": r["rank"], "rule": r["rule"],
+                        "note": r.get("note", ""), "rank": r["rank"],
+                        "signals": r.get("signals", ""), "rule": r["rule"],
                         "llm_verdict": r["llm_verdict"], "label_source": "human_review"})
     return {"decided": len(done), "new": len(new) - changed, "changed": changed,
             "unchanged": len(done) - len(new)}
+
+
+def latest_decisions(history: Path) -> list[dict]:
+    """The latest decision per (sheet, review_id) in the review history."""
+    if not history.exists():
+        return []
+    latest: dict[tuple[str, str], dict] = {}
+    with history.open(encoding="utf-8-sig", newline="") as f:
+        for h in csv.DictReader(f):
+            latest[(h["sheet"], h["review_id"])] = h
+    return list(latest.values())
+
+
+def edges_to_review(store, row: dict) -> list[str]:
+    """Edge ids that led from the changed block to the reviewed candidate: the
+    candidate's open REFERENCES to the changed block's document at the changed
+    section or heading (or the whole document), and DEPENDS between the two."""
+    from kg.impact import _cites, heading_anchor, section_key
+
+    pos = store.block_position(row["changed_block_uid"])
+    if pos is None:
+        return []
+    path = pos["block_id"].split("::")[1] if pos["block_id"] else "_"
+    key, anchor = section_key(path), heading_anchor(path)
+    ids = []
+    for e in store.citation_edges(row["block_uid"], pos["doc_key"]):
+        from kg.layer1_references import compact
+        cited = compact(e["cited_section"] or "")[0].lower()
+        if cited == "" or (key and _cites(cited, key.lower())) or (anchor and cited == anchor):
+            ids.append(e["id"])
+    ids += store.depends_between(row["block_uid"], row["changed_block_uid"])
+    return ids
+
+
+def apply_reviews(store, history: Path, factor: float, now) -> dict[str, int]:
+    """Step 15: a person's decisions change the confidence of the edges behind
+    them. not_affected -> rejected (confidence x factor); needs_update and
+    review_only -> approved (original confidence). Idempotent."""
+    out = {"decisions": 0, "rejected_edges": 0, "approved_edges": 0, "without_edges": 0}
+    for row in latest_decisions(history):
+        out["decisions"] += 1
+        ids = edges_to_review(store, row)
+        if not ids:
+            out["without_edges"] += 1
+            continue
+        status = "rejected" if row["decision"] == "not_affected" else "approved"
+        out[f"{status}_edges"] += store.set_review_status(ids, status, factor, now)
+    return out

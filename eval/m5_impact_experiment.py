@@ -25,13 +25,14 @@ Run:  uv run --group embed python eval/m5_impact_experiment.py
 from __future__ import annotations
 
 import argparse
+import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from compare_embeddings import E5, change_contexts, rankings
 from label_sources import DESCRIPTION
 from m5_labels import by_change, positives
-from make_change_test_set import ROOT
+from make_change_test_set import LABELS, ROOT
 
 from kg.config import load_config
 from kg.impact import (SIGNALS, ChangeItem, GraphView, citable_targets, graph_first,
@@ -62,12 +63,25 @@ def targets_after(cfg, event: str, view: GraphView) -> dict[str, set[str]]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--labels", default="ai", choices=["ai", "human"])
-    source = ap.parse_args().labels
+    ap.add_argument("--variant", default="A", choices=["A", "B"],
+                    help="A: layers 0-2; B: + layer 3 merges and layer 4 DEPENDS read from "
+                         "the graph (computed once on the current versions)")
+    args = ap.parse_args()
+    source, variant = args.labels, args.variant
+    merges, depends = {}, []
+    if variant == "B":
+        from kg.config import load_neo4j_credentials
+        from kg.store import Store
+
+        with Store(load_neo4j_credentials(), load_config(ROOT / "config.yaml").neo4j.database) as st:
+            edges = st.impact_edges()
+            merges, depends = edges["merges"], edges["depends"]
     cfg = load_config(ROOT / "config.yaml")
     documents = load_manual(ROOT / cfg.layer2.manual_file, sources=["documents"])
     e5 = E5()
     merged = by_change(positives(source), include_historical=True)
     views: dict[int, GraphView] = {}
+    keys: dict[str, dict] = {}
     hits: dict[tuple, Counter] = defaultdict(Counter)
     reach: dict[str, Counter] = defaultdict(Counter)
     n_changes = 0
@@ -81,10 +95,13 @@ def main() -> None:
         sid = id(ctx["store"])
         if sid not in views:
             views[sid] = GraphView(list(ctx["store"].values()), cfg.layer1,
-                                   cfg.layer2.hub_block_share, documents)
+                                   cfg.layer2.hub_block_share, documents, merges, depends)
         ch = ctx["change"]
+        old_uid = keys.setdefault(ctx["prefix"], json.loads(
+            (LABELS / f"{ctx['prefix']}_key.json").read_text(encoding="utf-8")))["changes"].get(
+            ctx["change_id"], {}).get("old_block_uid", "")
         item = ChangeItem(ctx["change_id"], ch["document"], ch["section"], ch["old_text"],
-                          ch["new_text"], ctx["lang"])
+                          ch["new_text"], ctx["lang"], old_uid or "")
         cands = ctx["cands"]
         hybrid = rankings(ch["old_text"] + "\n" + ch["new_text"], cands, e5)["hybrid"]
         sig = graph_signals(views[sid], item, set(cands),
@@ -125,7 +142,12 @@ def main() -> None:
                     reach[p.kind][s] += p.block_uid in sig[s]
                 reach[p.kind]["any"] += any(p.block_uid in sig[s] for s in SIGNALS)
 
-    out = ["# M5 step 1: impact retrieval, baseline vs graph (layers 0-2)", "",
+    out = [f"# M5: impact retrieval, baseline vs graph, variant {variant}", "",
+           ("Variant A: layers 0-2." if variant == "A" else
+            f"Variant B: layers 0-2 + layer 3 ({len(merges)} entity merges) + layer 4 "
+            f"({len(depends)} DEPENDS edges), both read from the graph and computed once on "
+            "the current versions; DEPENDS edges reach a change only where its block uid "
+            "exists in that store."), "",
            f"**Label source: {source}** ({DESCRIPTION[source]}). Most pairs come from "
            "synthetic edits written by the same AI reviewer that labelled them; real "
            "changes have very few dependents in this pilot.", "",
@@ -176,7 +198,8 @@ def main() -> None:
             "tokens per file, and any human label; results on Neo4j's stored graph "
             "(step 2) may differ where the graph holds older rule versions."]
     text = "\n".join(out)
-    (ROOT / "eval" / "results" / f"m5_impact_{source}.md").write_text(text, encoding="utf-8")
+    name = f"m5_impact_{source}.md" if variant == "A" else f"m5_impact_{variant}_{source}.md"
+    (ROOT / "eval" / "results" / name).write_text(text, encoding="utf-8")
     print(text)
 
 
