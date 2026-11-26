@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -112,6 +113,13 @@ class LLMSettings(BaseModel):
     confidence: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
+class ImpactSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # graph_first: graph-reached blocks by signal strength, then hybrid order
+    # rrf: Reciprocal Rank Fusion of hybrid and the graph signal rankings
+    ranking: Literal["graph_first", "rrf"] = "graph_first"
+
+
 class AppConfig(BaseModel):
     """Everything in config.yaml. Unknown keys are an error, to catch typos."""
 
@@ -124,6 +132,7 @@ class AppConfig(BaseModel):
     embedding: EmbeddingSettings = EmbeddingSettings()
     layer2: Layer2Settings = Layer2Settings()
     llm: LLMSettings = LLMSettings()
+    impact: ImpactSettings = ImpactSettings()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:

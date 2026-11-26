@@ -138,5 +138,8 @@ llm:
   cache_file: data/cache/llm.sqlite
   confidence: 0.6        # PROVISIONAL, below registry matches (0.8)
 
-# Later milestones will add sections here, for example:
-#   impact: N (checker budget)                                      (M5)
+impact:
+  # M5 ranking of candidate blocks (src/kg/impact.py). Decided by the user
+  # 2026-11-26 from eval/results/m5_impact_ai.md (AI labels): graph_first
+  # recall@5 0.66 vs rrf 0.54 vs hybrid alone 0.28. rrf is kept for comparison.
+  ranking: graph_first
