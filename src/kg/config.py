@@ -127,6 +127,9 @@ class ImpactSettings(BaseModel):
     top_n: int = Field(default=20, ge=1)  # candidates reported per change
     report_dir: Path = Path("data/reports")  # not in git (reports quote document text)
     check_top_n: int = Field(default=10, ge=1)  # candidates per change the LLM checks
+    # human review (step 14): sheets and the review history live with the labels,
+    # so `kg backup-labels` covers them (not in git)
+    review_dir: Path = Path("data/labels/reviews")
 
 
 class AppConfig(BaseModel):

@@ -7,6 +7,8 @@ live in copies named by their source:
 * <stem>_ai.csv     an AI reviewer (not a person's blind answers)
 * <stem>_person_seen_ai.csv  a person who answered after reading the AI answers
                     for the same rows (not blind, not independent of the AI)
+* human_review      a person's decisions in the review sheets of `kg impact
+                    --review` (system judgement shown; data/labels/reviews/)
 
 Only a person's blind answers (_human) count for a milestone's "done" check.
 Scoring scripts take --labels human | ai | person_seen_ai | all and name the
@@ -22,13 +24,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
-SOURCES = ("human", "ai", "person_seen_ai")
+SOURCES = ("human", "ai", "person_seen_ai", "human_review")
 
 DESCRIPTION = {
     "human": "a person, blind to the system's output, without AI help",
     "ai": "an AI reviewer, not a person; does not count for a milestone's done check",
     "person_seen_ai": ("a person who had read the AI reviewer's answers for the same rows; "
                        "not independent of them, so not a blind human label"),
+    "human_review": ("a person reviewing what kg impact proposed, with the system's "
+                     "signals and LLM verdict shown (workflow step 14); not blind, never "
+                     "mixed with blind human labels"),
 }
 
 

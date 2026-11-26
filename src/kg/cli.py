@@ -318,6 +318,8 @@ def impact(
     check: bool = typer.Option(False, "--check", help="LLM check (step 13) of the top "
                                "impact.check_top_n candidates per change: verdict, reason and "
                                "evidence as columns; nothing is removed"),
+    review: bool = typer.Option(False, "--review", help="Also write a review sheet (step 14) "
+                                "for the changes the rule or the LLM flagged; needs --check"),
     config: Path = ConfigOption,
 ) -> None:
     """Impact analysis for the current version of each --doc (workflow steps 11-13):
@@ -338,6 +340,10 @@ def impact(
     from kg.llm import LLMClient
 
     cfg = load_config(config)
+    if review and not check:
+        typer.secho("--review needs --check (the sheet shows the LLM verdicts).", fg="red",
+                    err=True)
+        raise typer.Exit(2)
     try:
         with _open_store(config) as store:
             blocks = store.current_body_blocks()
@@ -369,7 +375,7 @@ def impact(
             historical = {u for u, b in info.items()
                           if historical_reason(title.get(b["doc_key"], ""), b["text"])}
             checker = LLMClient.for_check(cfg.llm) if check else None
-            rows = []
+            rows, review_changes = [], []
             for k, it in items:
                 query = it.old_text + "\n" + it.new_text
                 q = emb.embed([query], "query")[0]
@@ -391,6 +397,7 @@ def impact(
                 # a rule hit (broken reference) always comes first, before LLM verdicts
                 broken = [u for u in order if u in sig["broken_reference"]]
                 order = broken + [u for u in order if u not in set(broken)]
+                change_rows = []
                 for rank, u in enumerate(order[: cfg.impact.top_n], start=1):
                     b = info[u]
                     v = verdicts.get(u)
@@ -404,7 +411,7 @@ def impact(
                             "evidence": ev,
                             "evidence_in_block": evidence_in(ev, b["text"]),
                             "historical": u in historical}
-                    rows.append({
+                    change_rows.append({
                         "document": k, "change": it.change_id, "changed_section": it.section_path,
                         "changed_block_uid": it.block_uid,
                         "rank": rank, "file": b["file"], "block_id": b["block_id"],
@@ -415,6 +422,14 @@ def impact(
                                  "exists" if u in sig["broken_reference"] else ""),
                         **checked,
                         "text": b["text"][:200].replace("\n", " ")})
+                rows += change_rows
+                if review:
+                    review_changes.append({
+                        "document": k, "change": it.change_id,
+                        "changed_section": it.section_path, "old_text": it.old_text,
+                        "new_text": it.new_text, "changed_block_uid": it.block_uid,
+                        "candidates": [{**r, "text": info[r["block_uid"]]["text"]}
+                                       for r in change_rows]})
                 typer.echo(f"  {k} {it.change_id} ({it.section_path}): "
                            f"{sum(1 for s in SIGNALS for _ in sig[s])} graph hits, "
                            f"top {cfg.impact.top_n} reported")
@@ -434,6 +449,42 @@ def impact(
         w.writeheader()
         w.writerows(rows)
     typer.secho(f"{len(items)} changes, {len(rows)} candidate rows -> {out}", fg="green")
+    if review:
+        from kg.backup import backup_labels
+        from kg.review import review_rows, write_sheet
+
+        sheet_rows = review_rows(review_changes, cfg.impact.check_top_n)
+        n_changes = len({(r["document"], r["change"]) for r in sheet_rows})
+        if not sheet_rows:
+            typer.echo("  review: no change was flagged; no sheet written")
+            return
+        backup_labels(Path("data/labels"))
+        sheet = cfg.impact.review_dir / f"review_{'_'.join(doc)}_{datetime.now():%Y%m%d-%H%M%S}.csv"
+        write_sheet(sheet, sheet_rows)
+        typer.secho(f"Review sheet: {n_changes} flagged changes, {len(sheet_rows)} rows -> "
+                    f"{sheet}\n  Fill `decision` ({' / '.join(['needs_update', 'review_only', 'not_affected'])}) "
+                    "and `note`, then run `kg review-import <sheet>`.", fg="green")
+
+
+@app.command("review-import")
+def review_import(
+    sheet: Path = typer.Argument(..., help="A filled review sheet from `kg impact --review`"),
+    config: Path = ConfigOption,
+) -> None:
+    """Append the decisions of a review sheet to the review history
+    (`impact.review_dir`/review_history.csv). Label source: human_review (a person,
+    system judgement shown). Unknown decision values stop the import."""
+    from kg.review import import_decisions
+
+    cfg = load_config(config)
+    history = cfg.impact.review_dir / "review_history.csv"
+    try:
+        res = import_decisions(sheet, history, datetime.now(timezone.utc))
+    except ValueError as e:
+        typer.secho(str(e), fg="red", err=True)
+        raise typer.Exit(1) from None
+    typer.secho(f"{res['decided']} decisions in the sheet: {res['new']} new, {res['changed']} "
+                f"changed, {res['unchanged']} already in {history}", fg="green")
 
 
 @app.command()

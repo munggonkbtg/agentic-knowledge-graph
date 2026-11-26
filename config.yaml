@@ -151,3 +151,4 @@ impact:
   top_n: 20             # candidates reported per change (step 13 will cut this list)
   report_dir: data/reports   # not in git: reports quote document text
   check_top_n: 10       # candidates per change the LLM checks (user decision 2026-11-26)
+  review_dir: data/labels/reviews   # review sheets + history (step 14), backed up with labels

@@ -562,6 +562,20 @@ Qwen3.5-4B, top 10 per change; `prompts/impact_check_v1.md`,
   three event 2 changes while the LLM still says not_affected; events 1 and 3:
   no rule hits. Recall at N unchanged (the block was already in the top 5).
 
+**Step 4, human review (2026-11-26)** (`src/kg/review.py`,
+`docs/review_guide.md`): decided by the user: the sheet shows the system's
+judgement (label source `human_review`, never mixed with blind `_human`
+labels), and only flagged changes go in (the rule fired or the LLM said
+needs_update), with their top 10.
+- `kg impact --check --review` writes the sheet to `data/labels/reviews/`
+  (backed up with the labels); `kg review-import` appends decisions
+  (needs_update / review_only / not_affected) to `review_history.csv`; a
+  changed decision is appended and the latest counts.
+- First sheets: event 1 6 changes / 60 rows, event 2 6 / 60, event 3 33 / 330
+  (450 rows). Waiting for a person.
+- Not built: lowering edge confidence from rejected items (step 15, M6-M7),
+  filtering by access rights.
+
 ## Open items carried forward
 
 | Item | Where it belongs |
