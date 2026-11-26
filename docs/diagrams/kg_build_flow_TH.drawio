@@ -1,9 +1,12 @@
 <mxfile host="app.diagrams.net">
   <diagram id="kg_build_workflow_th" name="Workflow สร้าง KG">
-    <mxGraphModel dx="2274" dy="1024" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2660" pageHeight="2280" math="0" shadow="0">
+    <mxGraphModel dx="2254" dy="1015" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2660" pageHeight="2280" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="c17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#9673a6;strokeWidth=2;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" value="" vertex="1">
+          <mxGeometry height="535" width="810" x="990" y="155" as="geometry" />
+        </mxCell>
         <mxCell id="c1" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;" value="&lt;b&gt;Workflow การสร้าง Knowledge Graph จากศูนย์&lt;/b&gt;" vertex="1">
           <mxGeometry height="60" width="1900" x="40" y="15" as="geometry" />
         </mxCell>
@@ -20,10 +23,7 @@
           <mxGeometry height="180" width="230" x="580" y="165" as="geometry" />
         </mxCell>
         <mxCell id="c6" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="ระบุได้&lt;br&gt;มั่นใจ?" vertex="1">
-          <mxGeometry height="100" width="110" x="850" y="195" as="geometry" />
-        </mxCell>
-        <mxCell id="c7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;คนตัดสินเมื่อระบบไม่แน่ใจ&lt;/b&gt;&lt;br&gt;ระบบแสดงเอกสารที่ใกล้เคียงที่สุด 2–3 ฉบับ พร้อมคะแนน คนเลือกว่า:&lt;br&gt;• ไฟล์นี้เป็น&lt;b&gt;เวอร์ชันใหม่&lt;/b&gt;ของเอกสารฉบับไหน หรือ&lt;br&gt;• เป็น&lt;b&gt;เอกสารใหม่&lt;/b&gt;" vertex="1">
-          <mxGeometry height="100" width="250" x="740" y="365" as="geometry" />
+          <mxGeometry height="100" width="110" x="845" y="195" as="geometry" />
         </mxCell>
         <mxCell id="c8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;ขั้น 2: แบ่ง chunk ตามโครงสร้าง&lt;/b&gt;&lt;br&gt;แยกตาม heading เป็นหัวข้อซ้อนกัน&lt;br&gt;ตัดเนื้อหาเป็น chunk ตามย่อหน้า ตาราง รายการ&lt;br&gt;(ไม่ตัดตามจำนวน token, ไม่ซ้อนทับกัน)&lt;br&gt;แต่ละ chunk มีรหัสคงที่ + ตำแหน่งบรรทัด&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Section, Block (= chunk)&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; CONTAINS, NEXT" vertex="1">
           <mxGeometry height="200" width="230" x="1000" y="165" as="geometry" />
@@ -37,242 +37,239 @@
         <mxCell id="c11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;ขั้น 5: ทำ embedding&lt;/b&gt;&lt;br&gt;แปลงแต่ละส่วนเป็น vector ด้วยโมเดล embedding ที่รองรับไทย / อังกฤษ&lt;br&gt;ใช้ค้นหาตามความหมาย และหาคู่ที่น่าจะเกี่ยวกันในขั้น 6–7&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;เพิ่ม vector ให้ Block (chunk) ที่มีอยู่ + สร้างดัชนีค้นหา&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="250" x="1540" y="485" as="geometry" />
         </mxCell>
-        <mxCell id="c12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;ขั้น 6: รวม entity ซ้ำ&lt;/b&gt;&lt;br&gt;หาชื่อที่น่าจะเป็นสิ่งเดียวกัน (ชื่อสั้น / ยาว, ไทย / อังกฤษ)&lt;br&gt;LLM ช่วยตัดสิน + กฎตรวจ&lt;br&gt;เก็บแบบย้อนกลับได้&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; ALIAS_OF (ชื่อที่ซ้ำ → entity หลัก)&lt;br&gt;&lt;i&gt;entity ที่ถูกรวมถูกทำเครื่องหมาย ไม่ถูกลบ&lt;/i&gt;" vertex="1">
-          <mxGeometry height="190" width="230" x="1270" y="485" as="geometry" />
-        </mxCell>
-        <mxCell id="c13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;ขั้น 7: หาการพึ่งพากัน&lt;/b&gt;&lt;br&gt;หาส่วนที่ใช้ข้อเท็จจริงของส่วนอื่นโดยไม่ได้อ้างตรง ๆ&lt;br&gt;จับคู่เฉพาะส่วนที่น่าจะเกี่ยว (entity ร่วม / ความหมายใกล้)&lt;br&gt;LLM ตัดสิน ต้องยกข้อความหลักฐานจากทั้งสองส่วน&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; DEPENDS (chunk → chunk)" vertex="1">
-          <mxGeometry height="190" width="230" x="1000" y="485" as="geometry" />
-        </mxCell>
         <mxCell id="c14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;ขั้น 8: ตรวจคุณภาพ&lt;/b&gt;&lt;br&gt;สุ่มตัวอย่างให้คนติดป้าย (ไม่เห็นผลของระบบ)&lt;br&gt;วัดความแม่นของแต่ละชนิด edge&lt;br&gt;เทียบกับเกณฑ์จากขั้น 0&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ได้ผลวัดและป้ายจากคน (ไม่เขียนลงกราฟ)&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="230" x="700" y="485" as="geometry" />
         </mxCell>
         <mxCell id="c15" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="ผ่าน&lt;br&gt;เกณฑ์?" vertex="1">
           <mxGeometry height="100" width="110" x="545" y="530" as="geometry" />
         </mxCell>
-        <mxCell id="c16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;ปรับปรุง&lt;/b&gt;&lt;br&gt;แก้กฎ / ทะเบียน / คำสั่งให้ LLM&lt;br&gt;แล้วสร้างขั้นที่เกี่ยวข้องใหม่" vertex="1">
-          <mxGeometry height="80" width="240" x="480" y="695" as="geometry" />
+        <mxCell id="c16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;ปรับปรุง:&lt;/b&gt; กลับไปขั้นที่สร้างสิ่งที่ไม่ผ่าน แก้ แล้วทำใหม่เฉพาะขั้นนั้นและขั้นที่ใช้ผลของมัน (ขั้นที่ไม่เกี่ยวไม่ต้องทำซ้ำ; edge รุ่นเก่าถูกปิด ไม่ถูกลบ)&lt;br&gt;&lt;table style=&quot;border-collapse:collapse;font-size:10px;&quot; border=&quot;1&quot; cellpadding=&quot;3&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;ไม่ผ่าน&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;แก้ที่&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;แก้อะไร&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;ทำใหม่ตามมา&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Section / Block (chunk)&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;td&gt;กฎแบ่ง chunk&lt;/td&gt;&lt;td&gt;3–7 ทั้งหมด&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;REFERENCES&lt;/td&gt;&lt;td&gt;ขั้น 3&lt;/td&gt;&lt;td&gt;กฎหาการอ้างอิง&lt;/td&gt;&lt;td&gt;ไม่มี&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;MENTIONS / Entity / Alias&lt;/td&gt;&lt;td&gt;ขั้น 4&lt;/td&gt;&lt;td&gt;ทะเบียน entity, กฎจับคำ&lt;/td&gt;&lt;td&gt;6–7&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;ALIAS_OF จากการรวม&lt;/td&gt;&lt;td&gt;ขั้น 6&lt;/td&gt;&lt;td&gt;คำสั่งให้ LLM / กฎตรวจ&lt;/td&gt;&lt;td&gt;7&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;DEPENDS&lt;/td&gt;&lt;td&gt;ขั้น 7&lt;/td&gt;&lt;td&gt;คำสั่งให้ LLM / วิธีเลือกคู่&lt;/td&gt;&lt;td&gt;ไม่มี&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
+          <mxGeometry height="160" width="670" x="40" y="705" as="geometry" />
         </mxCell>
-        <mxCell id="c17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Knowledge graph พร้อมใช้&lt;/b&gt;&lt;br&gt;ใช้วิเคราะห์ผลกระทบเมื่อเอกสารเปลี่ยน&lt;br&gt;ตอบคำถามพร้อมอ้างอิงต้นทาง&lt;br&gt;ดูความสัมพันธ์ในคลัง" vertex="1">
-          <mxGeometry height="130" width="240" x="270" y="515" as="geometry" />
+        <mxCell id="c18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Knowledge graph พร้อมใช้&lt;/b&gt;&lt;br&gt;ใช้วิเคราะห์ผลกระทบเมื่อเอกสารเปลี่ยน&lt;br&gt;ตอบคำถามพร้อมอ้างอิงต้นทาง&lt;br&gt;ดูความสัมพันธ์ในคลัง" vertex="1">
+          <mxGeometry height="130" width="240" x="240" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="e18" edge="1" parent="1" source="c3" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c4" value="">
+        <mxCell id="e19" edge="1" parent="1" source="c3" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c4" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e19" edge="1" parent="1" source="c4" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c5" value="">
+        <mxCell id="e20" edge="1" parent="1" source="c4" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c5" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e20" edge="1" parent="1" source="c5" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c6" value="">
+        <mxCell id="e21" edge="1" parent="1" source="c5" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;exitX=0.992;exitY=0.446;exitDx=0;exitDy=0;exitPerimeter=0;" target="c6" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e21" edge="1" parent="1" source="c6" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c8" value="ใช่">
+        <mxCell id="e22" edge="1" parent="1" source="c6" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c8" value="ใช่">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e22" edge="1" parent="1" source="c6" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;entryX=0.657;entryY=-0.002;entryDx=0;entryDy=0;entryPerimeter=0;" target="c7" value="ไม่">
+        <mxCell id="e23" edge="1" parent="1" source="c6" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;entryX=0.723;entryY=0.01;entryDx=0;entryDy=0;entryPerimeter=0;" target="c7" value="ไม่">
+          <mxGeometry relative="1" x="-0.0891" as="geometry">
+            <mxPoint x="900.25" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="c7" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;" value="">
+          <mxGeometry relative="1" x="0.0051" as="geometry">
+            <mxPoint x="1110" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="c8" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c9" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e23" edge="1" parent="1" source="c7" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="c8" value="">
+        <mxCell id="e26" edge="1" parent="1" source="c9" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c10" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e24" edge="1" parent="1" source="c8" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c9" value="">
+        <mxCell id="e27" edge="1" parent="1" source="c10" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c11" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e25" edge="1" parent="1" source="c9" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c10" value="">
+        <mxCell id="e28" edge="1" parent="1" source="c11" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c12" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e26" edge="1" parent="1" source="c10" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c11" value="">
+        <mxCell id="e29" edge="1" parent="1" source="c12" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c13" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e27" edge="1" parent="1" source="c11" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c12" value="">
+        <mxCell id="e30" edge="1" parent="1" source="c13" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c14" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e28" edge="1" parent="1" source="c12" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c13" value="">
+        <mxCell id="e31" edge="1" parent="1" source="c14" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c15" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e29" edge="1" parent="1" source="c13" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c14" value="">
+        <mxCell id="e32" edge="1" parent="1" source="c15" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c18" value="ผ่าน">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e30" edge="1" parent="1" source="c14" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c15" value="">
+        <mxCell id="e33" edge="1" parent="1" source="c15" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;entryX=0.835;entryY=0.004;entryDx=0;entryDy=0;entryPerimeter=0;" target="c16" value="ไม่ผ่าน">
+          <mxGeometry relative="1" x="-0.0806" as="geometry">
+            <mxPoint x="600" y="700" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e34" edge="1" parent="1" source="c16" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;exitX=1;exitY=0.85;entryX=0.2;entryY=1;" target="c17" value="กลับไปขั้นที่ไม่ผ่าน (2–7)&lt;br&gt;แล้วทำใหม่">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e31" edge="1" parent="1" source="c15" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c17" value="ผ่าน">
+        <mxCell id="c35" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;ที่จัดเก็บ: graph database&lt;/b&gt;&lt;br&gt;ทุกขั้นเขียนผลลงที่เดียวกัน; สร้างซ้ำได้โดยไม่เกิดข้อมูลซ้ำ; ทุก edge เก็บที่มา (วิธี หลักฐาน ความมั่นใจ) และช่วงเวลาที่มีผล; เมื่อเอกสารเปลี่ยน ความสัมพันธ์เดิมถูกปิด ไม่ถูกลบ" vertex="1">
+          <mxGeometry height="70" width="970" x="820" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" edge="1" parent="1" source="c5" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e32" edge="1" parent="1" source="c15" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c16" value="ไม่ผ่าน">
+        <mxCell id="e37" edge="1" parent="1" source="c8" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e33" edge="1" parent="1" source="c16" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" target="c10" value="สร้างขั้นที่เกี่ยวข้องใหม่">
+        <mxCell id="e38" edge="1" parent="1" source="c9" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="c34" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;ที่จัดเก็บ: graph database&lt;/b&gt;&lt;br&gt;ทุกขั้นเขียนผลลงที่เดียวกัน; สร้างซ้ำได้โดยไม่เกิดข้อมูลซ้ำ; ทุก edge เก็บที่มา (วิธี หลักฐาน ความมั่นใจ) และช่วงเวลาที่มีผล; เมื่อเอกสารเปลี่ยน ความสัมพันธ์เดิมถูกปิด ไม่ถูกลบ" vertex="1">
-          <mxGeometry height="70" width="970" x="820" y="705" as="geometry" />
-        </mxCell>
-        <mxCell id="e35" edge="1" parent="1" source="c5" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e39" edge="1" parent="1" source="c10" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e36" edge="1" parent="1" source="c8" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e40" edge="1" parent="1" source="c11" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e37" edge="1" parent="1" source="c9" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e41" edge="1" parent="1" source="c12" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e38" edge="1" parent="1" source="c10" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e42" edge="1" parent="1" source="c13" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;entryX=0.426;entryY=0.008;entryDx=0;entryDy=0;entryPerimeter=0;" target="c35" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e39" edge="1" parent="1" source="c11" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="c43" parent="1" style="text;html=1;align=left;fontSize=12;" value="&lt;i&gt;หลังจากกราฟพร้อมใช้: เมื่อมีการ upload เอกสารใหม่หรือเวอร์ชันใหม่ ดูส่วนที่ 4 ด้านขวา&lt;/i&gt;" vertex="1">
+          <mxGeometry height="25" width="1750" x="40" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="c44" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 2: ตัวอย่างกราฟที่ได้ (node และ edge)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="25" width="700" x="40" y="945" as="geometry" />
+        </mxCell>
+        <mxCell id="c45" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#cccccc;dashed=1;" value="" vertex="1">
+          <mxGeometry height="660" width="910" x="40" y="975" as="geometry" />
+        </mxCell>
+        <mxCell id="c46" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Document&lt;/b&gt;&lt;br&gt;พ.ร.บ. คุ้มครองแรงงาน&lt;br&gt;&lt;i&gt;(ตัวเอกสาร ไม่ผูกเวอร์ชัน)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="70" y="995" as="geometry" />
+        </mxCell>
+        <mxCell id="c47" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Version&lt;/b&gt;&lt;br&gt;ฉบับปัจจุบัน" vertex="1">
+          <mxGeometry height="70" width="190" x="70" y="1135" as="geometry" />
+        </mxCell>
+        <mxCell id="c48" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Version&lt;/b&gt;&lt;br&gt;ฉบับเดิม" vertex="1">
+          <mxGeometry height="70" width="190" x="415" y="1135" as="geometry" />
+        </mxCell>
+        <mxCell id="c49" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Section&lt;/b&gt;&lt;br&gt;หมวด ค่าชดเชย&lt;br&gt;&amp;gt; มาตรา 118" vertex="1">
+          <mxGeometry height="70" width="190" x="70" y="1275" as="geometry" />
+        </mxCell>
+        <mxCell id="c50" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;&quot;ให้นายจ้างจ่ายค่าชดเชย ... สามสิบวัน&quot;" vertex="1">
+          <mxGeometry height="75" width="210" x="60" y="1410" as="geometry" />
+        </mxCell>
+        <mxCell id="c51" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;ย่อหน้าถัดไป" vertex="1">
+          <mxGeometry height="60" width="210" x="60" y="1540" as="geometry" />
+        </mxCell>
+        <mxCell id="c52" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;ในระเบียบอื่น:&lt;br&gt;&quot;ตามมาตรา 118 แห่ง พ.ร.บ. ...&quot;" vertex="1">
+          <mxGeometry height="80" width="220" x="400" y="1315" as="geometry" />
+        </mxCell>
+        <mxCell id="c53" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Entity&lt;/b&gt;&lt;br&gt;ค่าชดเชย&lt;br&gt;&lt;i&gt;(สิทธิ / ประโยชน์)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="710" y="1430" as="geometry" />
+        </mxCell>
+        <mxCell id="c54" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;&quot;ค่าชดเชย&quot;" vertex="1">
+          <mxGeometry height="55" width="160" x="725" y="1545" as="geometry" />
+        </mxCell>
+        <mxCell id="c55" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;&quot;severance pay&quot;" vertex="1">
+          <mxGeometry height="55" width="170" x="720" y="1285" as="geometry" />
+        </mxCell>
+        <mxCell id="e56" edge="1" parent="1" source="c46" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c47" value="HAS_VERSION">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e40" edge="1" parent="1" source="c12" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e57" edge="1" parent="1" source="c47" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;edgeStyle=none;" target="c48" value="SUPERSEDES&lt;br&gt;(เมื่อมีเวอร์ชันใหม่)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e41" edge="1" parent="1" source="c13" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#999999;endArrow=open;edgeStyle=none;" target="c34" value="">
+        <mxCell id="e58" edge="1" parent="1" source="c47" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c49" value="CONTAINS">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="c42" parent="1" style="text;html=1;align=left;fontSize=12;" value="&lt;i&gt;หลังจากกราฟพร้อมใช้: เมื่อมีการ upload เอกสารใหม่หรือเวอร์ชันใหม่ ดูส่วนที่ 4 ด้านขวา&lt;/i&gt;" vertex="1">
-          <mxGeometry height="25" width="1750" x="40" y="795" as="geometry" />
-        </mxCell>
-        <mxCell id="c43" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 2: ตัวอย่างกราฟที่ได้ (node และ edge)&lt;/b&gt;" vertex="1">
-          <mxGeometry height="25" width="700" x="40" y="845" as="geometry" />
-        </mxCell>
-        <mxCell id="c44" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#cccccc;dashed=1;" value="" vertex="1">
-          <mxGeometry height="660" width="910" x="40" y="875" as="geometry" />
-        </mxCell>
-        <mxCell id="c45" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Document&lt;/b&gt;&lt;br&gt;พ.ร.บ. คุ้มครองแรงงาน&lt;br&gt;&lt;i&gt;(ตัวเอกสาร ไม่ผูกเวอร์ชัน)&lt;/i&gt;" vertex="1">
-          <mxGeometry height="70" width="190" x="70" y="895" as="geometry" />
-        </mxCell>
-        <mxCell id="c46" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Version&lt;/b&gt;&lt;br&gt;ฉบับปัจจุบัน" vertex="1">
-          <mxGeometry height="70" width="190" x="70" y="1035" as="geometry" />
-        </mxCell>
-        <mxCell id="c47" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;b&gt;Version&lt;/b&gt;&lt;br&gt;ฉบับเดิม" vertex="1">
-          <mxGeometry height="70" width="190" x="415" y="1035" as="geometry" />
-        </mxCell>
-        <mxCell id="c48" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Section&lt;/b&gt;&lt;br&gt;หมวด ค่าชดเชย&lt;br&gt;&amp;gt; มาตรา 118" vertex="1">
-          <mxGeometry height="70" width="190" x="70" y="1175" as="geometry" />
-        </mxCell>
-        <mxCell id="c49" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;&quot;ให้นายจ้างจ่ายค่าชดเชย ... สามสิบวัน&quot;" vertex="1">
-          <mxGeometry height="75" width="210" x="60" y="1315" as="geometry" />
-        </mxCell>
-        <mxCell id="c50" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;ย่อหน้าถัดไป" vertex="1">
-          <mxGeometry height="60" width="210" x="60" y="1435" as="geometry" />
-        </mxCell>
-        <mxCell id="c51" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Block (chunk)&lt;/b&gt;&lt;br&gt;ในระเบียบอื่น:&lt;br&gt;&quot;ตามมาตรา 118 แห่ง พ.ร.บ. ...&quot;" vertex="1">
-          <mxGeometry height="80" width="220" x="400" y="1215" as="geometry" />
-        </mxCell>
-        <mxCell id="c52" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Entity&lt;/b&gt;&lt;br&gt;ค่าชดเชย&lt;br&gt;&lt;i&gt;(สิทธิ / ประโยชน์)&lt;/i&gt;" vertex="1">
-          <mxGeometry height="70" width="190" x="710" y="1320" as="geometry" />
-        </mxCell>
-        <mxCell id="c53" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;&quot;ค่าชดเชย&quot;" vertex="1">
-          <mxGeometry height="55" width="160" x="725" y="1440" as="geometry" />
-        </mxCell>
-        <mxCell id="c54" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Alias&lt;/b&gt;&lt;br&gt;&quot;severance pay&quot;" vertex="1">
-          <mxGeometry height="55" width="170" x="720" y="1185" as="geometry" />
-        </mxCell>
-        <mxCell id="e55" edge="1" parent="1" source="c45" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c46" value="HAS_VERSION">
+        <mxCell id="e59" edge="1" parent="1" source="c49" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c50" value="CONTAINS">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e56" edge="1" parent="1" source="c46" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;dashed=1;edgeStyle=none;" target="c47" value="SUPERSEDES&lt;br&gt;(เมื่อมีเวอร์ชันใหม่)">
+        <mxCell id="e60" edge="1" parent="1" source="c50" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c51" value="NEXT">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e57" edge="1" parent="1" source="c46" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c48" value="CONTAINS">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e58" edge="1" parent="1" source="c48" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c49" value="CONTAINS">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e59" edge="1" parent="1" source="c49" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;edgeStyle=none;" target="c50" value="NEXT">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e60" edge="1" parent="1" source="c51" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;edgeStyle=none;" target="c45" value="REFERENCES&lt;br&gt;(อ้าง มาตรา 118)">
-          <mxGeometry relative="1" x="-0.3231" y="-2" as="geometry">
+        <mxCell id="e61" edge="1" parent="1" source="c52" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;edgeStyle=none;" target="c46" value="REFERENCES&lt;br&gt;(อ้าง มาตรา 118)">
+          <mxGeometry relative="1" x="-0.4359" y="6" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e61" edge="1" parent="1" source="c49" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c52" value="MENTIONS&lt;br&gt;(ค่า: 30 วัน)">
+        <mxCell id="e62" edge="1" parent="1" source="c50" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c53" value="MENTIONS&lt;br&gt;(ค่า: 30 วัน)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e62" edge="1" parent="1" source="c51" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c52" value="MENTIONS">
+        <mxCell id="e63" edge="1" parent="1" source="c52" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c53" value="MENTIONS">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e63" edge="1" parent="1" source="c53" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c52" value="ALIAS_OF">
+        <mxCell id="e64" edge="1" parent="1" source="c54" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;edgeStyle=none;" target="c53" value="ALIAS_OF">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e64" edge="1" parent="1" source="c54" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;dashed=1;edgeStyle=none;" target="c52" value="ALIAS_OF&lt;br&gt;(รวมชื่อไทย-อังกฤษ)">
+        <mxCell id="e65" edge="1" parent="1" source="c55" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;dashed=1;edgeStyle=none;" target="c53" value="ALIAS_OF&lt;br&gt;(รวมชื่อไทย-อังกฤษ)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e65" edge="1" parent="1" source="c51" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;edgeStyle=none;" target="c49" value="DEPENDS&lt;br&gt;(มีหลักฐานจากทั้งสองส่วน)">
+        <mxCell id="e66" edge="1" parent="1" source="c52" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeColor=#d79b00;edgeStyle=none;" target="c50" value="DEPENDS&lt;br&gt;(มีหลักฐานจากทั้งสองส่วน)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="c66" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 3: node และ edge สร้างมาจากอะไร&lt;/b&gt;" vertex="1">
-          <mxGeometry height="25" width="800" x="980" y="845" as="geometry" />
+        <mxCell id="c67" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 3: node และ edge สร้างมาจากอะไร&lt;/b&gt;" vertex="1">
+          <mxGeometry height="25" width="800" x="980" y="945" as="geometry" />
         </mxCell>
-        <mxCell id="c67" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;" value="&lt;b&gt;Node (6 ชนิด)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;ชนิด&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;คืออะไร&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;สร้างจาก&lt;/th&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#fff2cc;&quot;&gt;&lt;td&gt;&lt;b&gt;Document&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ตัวเอกสาร (ไม่ผูกกับเวอร์ชัน)&lt;/td&gt;&lt;td&gt;ขั้น 1: รหัสเอกสาร; ขั้น 3: เอกสารที่ถูกอ้างแต่ไม่มีในคลัง&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#fff2cc;&quot;&gt;&lt;td&gt;&lt;b&gt;Version&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ไฟล์หนึ่งครั้งที่นำเข้า&lt;/td&gt;&lt;td&gt;ขั้น 1&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#e1d5e7;&quot;&gt;&lt;td&gt;&lt;b&gt;Section&lt;/b&gt;&lt;/td&gt;&lt;td&gt;หัวข้อตาม heading&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#e1d5e7;&quot;&gt;&lt;td&gt;&lt;b&gt;Block (= chunk)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk ของเนื้อหาที่ตัดตามโครงสร้าง (ย่อหน้า ตาราง รายการ) พร้อมข้อความและ vector&lt;/td&gt;&lt;td&gt;ขั้น 2; vector จากขั้น 5&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#f8cecc;&quot;&gt;&lt;td&gt;&lt;b&gt;Entity&lt;/b&gt;&lt;/td&gt;&lt;td&gt;สิ่งที่เอกสารพูดถึง (สิทธิ หน้าที่ ตำแหน่ง แบบฟอร์ม หน่วยงาน สถานที่)&lt;/td&gt;&lt;td&gt;ขั้น 4: ทะเบียน entity&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#f8cecc;&quot;&gt;&lt;td&gt;&lt;b&gt;Alias&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ชื่อตามที่เขียนจริง (ไทย อังกฤษ ชื่อย่อ)&lt;/td&gt;&lt;td&gt;ขั้น 4; ขั้น 6 เพิ่มชื่อที่รวมกัน&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
-          <mxGeometry height="270" width="810" x="980" y="875" as="geometry" />
+        <mxCell id="c68" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;" value="&lt;b&gt;Node (6 ชนิด)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;ชนิด&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;คืออะไร&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;สร้างจาก&lt;/th&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#fff2cc;&quot;&gt;&lt;td&gt;&lt;b&gt;Document&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ตัวเอกสาร (ไม่ผูกกับเวอร์ชัน)&lt;/td&gt;&lt;td&gt;ขั้น 1: รหัสเอกสาร; ขั้น 3: เอกสารที่ถูกอ้างแต่ไม่มีในคลัง&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#fff2cc;&quot;&gt;&lt;td&gt;&lt;b&gt;Version&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ไฟล์หนึ่งครั้งที่นำเข้า&lt;/td&gt;&lt;td&gt;ขั้น 1&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#e1d5e7;&quot;&gt;&lt;td&gt;&lt;b&gt;Section&lt;/b&gt;&lt;/td&gt;&lt;td&gt;หัวข้อตาม heading&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#e1d5e7;&quot;&gt;&lt;td&gt;&lt;b&gt;Block (= chunk)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk ของเนื้อหาที่ตัดตามโครงสร้าง (ย่อหน้า ตาราง รายการ) พร้อมข้อความและ vector&lt;/td&gt;&lt;td&gt;ขั้น 2; vector จากขั้น 5&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#f8cecc;&quot;&gt;&lt;td&gt;&lt;b&gt;Entity&lt;/b&gt;&lt;/td&gt;&lt;td&gt;สิ่งที่เอกสารพูดถึง (สิทธิ หน้าที่ ตำแหน่ง แบบฟอร์ม หน่วยงาน สถานที่)&lt;/td&gt;&lt;td&gt;ขั้น 4: ทะเบียน entity&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#f8cecc;&quot;&gt;&lt;td&gt;&lt;b&gt;Alias&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ชื่อตามที่เขียนจริง (ไทย อังกฤษ ชื่อย่อ)&lt;/td&gt;&lt;td&gt;ขั้น 4; ขั้น 6 เพิ่มชื่อที่รวมกัน&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
+          <mxGeometry height="270" width="810" x="980" y="975" as="geometry" />
         </mxCell>
-        <mxCell id="c68" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;" value="&lt;b&gt;Edge (8 ชนิด)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;ชนิด&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;ความหมาย&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;สร้างในขั้น&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;วิธี&lt;/th&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;HAS_VERSION&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เอกสาร → เวอร์ชัน&lt;/td&gt;&lt;td&gt;ขั้น 1&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;CONTAINS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เวอร์ชัน → หัวข้อ → chunk (พร้อมตำแหน่ง)&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;NEXT&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → chunk ถัดไป&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;SUPERSEDES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เวอร์ชันใหม่ → เวอร์ชันเดิม&lt;/td&gt;&lt;td&gt;เมื่อนำเข้าเวอร์ชันใหม่&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;REFERENCES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → เอกสารที่ถูกอ้าง (+ หัวข้อที่อ้าง)&lt;/td&gt;&lt;td&gt;ขั้น 3&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;MENTIONS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → entity (+ ตัวเลขและหน่วย)&lt;/td&gt;&lt;td&gt;ขั้น 4&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#ffe6cc;&quot;&gt;&lt;td&gt;&lt;b&gt;ALIAS_OF&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ชื่อ → entity&lt;/td&gt;&lt;td&gt;ขั้น 4; ขั้น 6 รวมชื่อซ้ำ&lt;/td&gt;&lt;td&gt;ขั้น 6 ใช้ LLM&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#ffe6cc;&quot;&gt;&lt;td&gt;&lt;b&gt;DEPENDS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → chunk ที่มันพึ่งข้อเท็จจริง โดยไม่ได้อ้างตรง ๆ&lt;/td&gt;&lt;td&gt;ขั้น 7&lt;/td&gt;&lt;td&gt;LLM&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
-          <mxGeometry height="375" width="810" x="980" y="1160" as="geometry" />
+        <mxCell id="c69" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;" value="&lt;b&gt;Edge (8 ชนิด)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%;border-collapse:collapse;font-size:11px;&quot; border=&quot;1&quot; cellpadding=&quot;4&quot;&gt;&lt;tr style=&quot;background:#eeeeee;&quot;&gt;&lt;th align=&quot;left&quot;&gt;ชนิด&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;ความหมาย&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;สร้างในขั้น&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;วิธี&lt;/th&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;HAS_VERSION&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เอกสาร → เวอร์ชัน&lt;/td&gt;&lt;td&gt;ขั้น 1&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;CONTAINS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เวอร์ชัน → หัวข้อ → chunk (พร้อมตำแหน่ง)&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;NEXT&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → chunk ถัดไป&lt;/td&gt;&lt;td&gt;ขั้น 2&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;SUPERSEDES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;เวอร์ชันใหม่ → เวอร์ชันเดิม&lt;/td&gt;&lt;td&gt;เมื่อนำเข้าเวอร์ชันใหม่&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;REFERENCES&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → เอกสารที่ถูกอ้าง (+ หัวข้อที่อ้าง)&lt;/td&gt;&lt;td&gt;ขั้น 3&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#d5e8d4;&quot;&gt;&lt;td&gt;&lt;b&gt;MENTIONS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → entity (+ ตัวเลขและหน่วย)&lt;/td&gt;&lt;td&gt;ขั้น 4&lt;/td&gt;&lt;td&gt;กฎ&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#ffe6cc;&quot;&gt;&lt;td&gt;&lt;b&gt;ALIAS_OF&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ชื่อ → entity&lt;/td&gt;&lt;td&gt;ขั้น 4; ขั้น 6 รวมชื่อซ้ำ&lt;/td&gt;&lt;td&gt;ขั้น 6 ใช้ LLM&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#ffe6cc;&quot;&gt;&lt;td&gt;&lt;b&gt;DEPENDS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;chunk → chunk ที่มันพึ่งข้อเท็จจริง โดยไม่ได้อ้างตรง ๆ&lt;/td&gt;&lt;td&gt;ขั้น 7&lt;/td&gt;&lt;td&gt;LLM&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" vertex="1">
+          <mxGeometry height="375" width="810" x="980" y="1260" as="geometry" />
         </mxCell>
-        <mxCell id="c69" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#cccccc;dashed=1;" value="" vertex="1">
+        <mxCell id="c70" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#cccccc;dashed=1;" value="" vertex="1">
           <mxGeometry height="2080" width="760" x="1870" y="130" as="geometry" />
         </mxCell>
-        <mxCell id="c70" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 4: เมื่อมีการ upload เอกสารเข้ามาใหม่&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size:11px&#39;&gt;กราฟจากส่วนที่ 1 พร้อมใช้แล้ว ทำเฉพาะส่วนที่เปลี่ยน ไม่สร้างใหม่ทั้งกราฟ&lt;/font&gt;" vertex="1">
+        <mxCell id="c71" parent="1" style="text;html=1;align=left;fontSize=15;" value="&lt;b&gt;ส่วนที่ 4: เมื่อมีการ upload เอกสารเข้ามาใหม่&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size:11px&#39;&gt;กราฟจากส่วนที่ 1 พร้อมใช้แล้ว ทำเฉพาะส่วนที่เปลี่ยน ไม่สร้างใหม่ทั้งกราฟ&lt;/font&gt;" vertex="1">
           <mxGeometry height="45" width="720" x="1890" y="140" as="geometry" />
         </mxCell>
-        <mxCell id="c71" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;เริ่ม: ได้ไฟล์ Markdown ใหม่&lt;/b&gt;&lt;br&gt;ผู้ใช้ upload ไฟล์ 1 ไฟล์หรือหลายไฟล์" vertex="1">
+        <mxCell id="c72" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;เริ่ม: ได้ไฟล์ Markdown ใหม่&lt;/b&gt;&lt;br&gt;ผู้ใช้ upload ไฟล์ 1 ไฟล์หรือหลายไฟล์" vertex="1">
           <mxGeometry height="70" width="330" x="1900" y="195" as="geometry" />
         </mxCell>
-        <mxCell id="c72" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U1: ระบุเอกสาร&lt;/b&gt;&lt;br&gt;เทียบชื่อเรื่อง รหัสเอกสาร และเนื้อหา กับเอกสารที่มีในกราฟ&lt;br&gt;หาเอกสารที่ใกล้เคียงที่สุด พร้อมคะแนน&lt;br&gt;&lt;i&gt;ตอบแค่ว่าไฟล์นี้คือเอกสารอะไร ไม่ใช่การหาจุดเริ่มเดินกราฟ (เทียบทั้งฉบับกับทั้งฉบับ ไม่ได้ค้นหา chunk)&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ยังไม่เขียนลงกราฟจนกว่าจะรู้ว่าเป็นเอกสารอะไร&lt;/i&gt;" vertex="1">
+        <mxCell id="c73" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U1: ระบุเอกสาร&lt;/b&gt;&lt;br&gt;เทียบชื่อเรื่อง รหัสเอกสาร และเนื้อหา กับเอกสารที่มีในกราฟ&lt;br&gt;หาเอกสารที่ใกล้เคียงที่สุด พร้อมคะแนน&lt;br&gt;&lt;i&gt;ตอบแค่ว่าไฟล์นี้คือเอกสารอะไร ไม่ใช่การหาจุดเริ่มเดินกราฟ (เทียบทั้งฉบับกับทั้งฉบับ ไม่ได้ค้นหา chunk)&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ยังไม่เขียนลงกราฟจนกว่าจะรู้ว่าเป็นเอกสารอะไร&lt;/i&gt;" vertex="1">
           <mxGeometry height="180" width="330" x="1900" y="295" as="geometry" />
         </mxCell>
-        <mxCell id="c73" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="เวอร์ชันใหม่&lt;br&gt;หรือเอกสารใหม่?&lt;br&gt;&lt;i&gt;(ไม่แน่ใจ → คนเลือก)&lt;/i&gt;" vertex="1">
+        <mxCell id="c74" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="เวอร์ชันใหม่&lt;br&gt;หรือเอกสารใหม่?&lt;br&gt;&lt;i&gt;(ไม่แน่ใจ → คนเลือก)&lt;/i&gt;" vertex="1">
           <mxGeometry height="120" width="180" x="1975" y="500" as="geometry" />
         </mxCell>
-        <mxCell id="c74" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;เอกสารใหม่: สร้างเหมือนส่วนที่ 1&lt;/b&gt;&lt;br&gt;ทำขั้น 1–5 กับไฟล์นี้ทั้งไฟล์&lt;br&gt;ถ้าเอกสารนี้เคยถูกอ้างถึงและมี Document ว่างอยู่ (จากขั้น 3) ใช้ Document นั้นเลย การอ้างอิงเดิมจึงชี้มาที่เนื้อหาจริงทันที&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Document (หรือเติม Document ว่าง), Version, Section, Block (chunk), Entity / Alias เฉพาะชื่อใหม่&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; HAS_VERSION, CONTAINS, NEXT, REFERENCES, MENTIONS, ALIAS_OF" vertex="1">
+        <mxCell id="c75" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;เอกสารใหม่: สร้างเหมือนส่วนที่ 1&lt;/b&gt;&lt;br&gt;ทำขั้น 1–5 กับไฟล์นี้ทั้งไฟล์&lt;br&gt;ถ้าเอกสารนี้เคยถูกอ้างถึงและมี Document ว่างอยู่ (จากขั้น 3) ใช้ Document นั้นเลย การอ้างอิงเดิมจึงชี้มาที่เนื้อหาจริงทันที&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Document (หรือเติม Document ว่าง), Version, Section, Block (chunk), Entity / Alias เฉพาะชื่อใหม่&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; HAS_VERSION, CONTAINS, NEXT, REFERENCES, MENTIONS, ALIAS_OF" vertex="1">
           <mxGeometry height="290" width="310" x="2290" y="415" as="geometry" />
         </mxCell>
-        <mxCell id="c75" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U2: เทียบกับเวอร์ชันเดิม (diff)&lt;/b&gt;&lt;br&gt;แบ่ง chunk ไฟล์ใหม่ (ขั้น 2) แล้วจับคู่กับ chunk ของเวอร์ชันเดิม&lt;br&gt;แต่ละ chunk เป็นหนึ่งใน: &lt;b&gt;เหมือนเดิม&lt;/b&gt; (ใช้ node เดิมซ้ำ), &lt;b&gt;แก้ไข&lt;/b&gt;, &lt;b&gt;เพิ่มใหม่&lt;/b&gt;, &lt;b&gt;ถูกลบ&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Version ใหม่; Section, Block (chunk) เฉพาะที่แก้ไขหรือเพิ่มใหม่&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; HAS_VERSION, SUPERSEDES (ใหม่ → เดิม), CONTAINS, NEXT" vertex="1">
+        <mxCell id="c76" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U2: เทียบกับเวอร์ชันเดิม (diff)&lt;/b&gt;&lt;br&gt;แบ่ง chunk ไฟล์ใหม่ (ขั้น 2) แล้วจับคู่กับ chunk ของเวอร์ชันเดิม&lt;br&gt;แต่ละ chunk เป็นหนึ่งใน: &lt;b&gt;เหมือนเดิม&lt;/b&gt; (ใช้ node เดิมซ้ำ), &lt;b&gt;แก้ไข&lt;/b&gt;, &lt;b&gt;เพิ่มใหม่&lt;/b&gt;, &lt;b&gt;ถูกลบ&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Version ใหม่; Section, Block (chunk) เฉพาะที่แก้ไขหรือเพิ่มใหม่&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; HAS_VERSION, SUPERSEDES (ใหม่ → เดิม), CONTAINS, NEXT" vertex="1">
           <mxGeometry height="250" width="330" x="1900" y="645" as="geometry" />
         </mxCell>
-        <mxCell id="c76" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U3: อัปเดตเบื้องต้น&lt;/b&gt;&lt;br&gt;ทำขั้น 3–5 เฉพาะ chunk ที่แก้ไขหรือเพิ่มใหม่: หาการอ้างอิง, entity และค่า, embedding&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Entity / Alias เฉพาะชื่อที่ไม่เคยมี&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; REFERENCES, MENTIONS ของ chunk เหล่านั้น&lt;br&gt;&lt;i&gt;chunk ใหม่ได้ vector&lt;/i&gt;" vertex="1">
+        <mxCell id="c77" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U3: อัปเดตเบื้องต้น&lt;/b&gt;&lt;br&gt;ทำขั้น 3–5 เฉพาะ chunk ที่แก้ไขหรือเพิ่มใหม่: หาการอ้างอิง, entity และค่า, embedding&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; Entity / Alias เฉพาะชื่อที่ไม่เคยมี&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; REFERENCES, MENTIONS ของ chunk เหล่านั้น&lt;br&gt;&lt;i&gt;chunk ใหม่ได้ vector&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="330" x="1900" y="925" as="geometry" />
         </mxCell>
-        <mxCell id="c77" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U4: วิเคราะห์ผลกระทบ&lt;/b&gt;&lt;br&gt;&lt;b&gt;จุดเริ่มเดินกราฟ = chunk ที่แก้ไขหรือถูกลบจาก diff (U2)&lt;/b&gt; (เอกสารใหม่: ทุก chunk ของเอกสารนั้น) รู้แน่นอนว่าอะไรเปลี่ยน ไม่ต้องใช้ semantic search หาจุดเริ่ม&lt;br&gt;เดินตาม edge จากจุดเริ่ม หา chunk ในเอกสารอื่นที่อาจต้องแก้ตาม เรียงจากสัญญาณแรงไปอ่อน:&lt;br&gt;1. อ้างถึงหัวข้อที่ถูกลบ (ลิงก์เสีย)&lt;br&gt;2. อ้างถึงหัวข้อที่ถูกแก้&lt;br&gt;3. DEPENDS กับ chunk ที่เปลี่ยน&lt;br&gt;4. ใช้ตัวเลขเดิมของ entity เดียวกัน&lt;br&gt;5. พูดถึง entity เดียวกัน&lt;br&gt;6. อ้างถึงทั้งเอกสาร&lt;br&gt;semantic search (vector) ใช้แค่เสริมท้ายรายการ: หา chunk ที่ความหมายใกล้แต่ไม่มี edge เชื่อม&lt;br&gt;chunk ในส่วนที่เป็นประวัติ (เช่น ฉบับแก้ไขเก่า) ไม่ถูกดันขึ้น&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ได้รายการ chunk ที่อาจได้รับผล + สัญญาณที่พบ&lt;/i&gt;" vertex="1">
+        <mxCell id="c78" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;U4: วิเคราะห์ผลกระทบ&lt;/b&gt;&lt;br&gt;&lt;b&gt;จุดเริ่มเดินกราฟ = chunk ที่แก้ไขหรือถูกลบจาก diff (U2)&lt;/b&gt; (เอกสารใหม่: ทุก chunk ของเอกสารนั้น) รู้แน่นอนว่าอะไรเปลี่ยน ไม่ต้องใช้ semantic search หาจุดเริ่ม&lt;br&gt;เดินตาม edge จากจุดเริ่ม หา chunk ในเอกสารอื่นที่อาจต้องแก้ตาม เรียงจากสัญญาณแรงไปอ่อน:&lt;br&gt;1. อ้างถึงหัวข้อที่ถูกลบ (ลิงก์เสีย)&lt;br&gt;2. อ้างถึงหัวข้อที่ถูกแก้&lt;br&gt;3. DEPENDS กับ chunk ที่เปลี่ยน&lt;br&gt;4. ใช้ตัวเลขเดิมของ entity เดียวกัน&lt;br&gt;5. พูดถึง entity เดียวกัน&lt;br&gt;6. อ้างถึงทั้งเอกสาร&lt;br&gt;semantic search (vector) ใช้แค่เสริมท้ายรายการ: หา chunk ที่ความหมายใกล้แต่ไม่มี edge เชื่อม&lt;br&gt;chunk ในส่วนที่เป็นประวัติ (เช่น ฉบับแก้ไขเก่า) ไม่ถูกดันขึ้น&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ได้รายการ chunk ที่อาจได้รับผล + สัญญาณที่พบ&lt;/i&gt;" vertex="1">
           <mxGeometry height="400" width="330" x="1900" y="1145" as="geometry" />
         </mxCell>
-        <mxCell id="c78" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;U5: LLM ช่วยติดป้าย&lt;/b&gt;&lt;br&gt;อ่านรายการอันดับต้น ๆ เทียบกับข้อความเดิม / ใหม่&lt;br&gt;ติดป้าย: ต้องแก้ / ควรดู / ไม่กระทบ พร้อมเหตุผลและข้อความหลักฐาน&lt;br&gt;&lt;i&gt;ติดป้ายเท่านั้น ไม่ตัดรายการทิ้ง&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ป้ายจาก LLM บนรายการ&lt;/i&gt;" vertex="1">
+        <mxCell id="c79" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;U5: LLM ช่วยติดป้าย&lt;/b&gt;&lt;br&gt;อ่านรายการอันดับต้น ๆ เทียบกับข้อความเดิม / ใหม่&lt;br&gt;ติดป้าย: ต้องแก้ / ควรดู / ไม่กระทบ พร้อมเหตุผลและข้อความหลักฐาน&lt;br&gt;&lt;i&gt;ติดป้ายเท่านั้น ไม่ตัดรายการทิ้ง&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ป้ายจาก LLM บนรายการ&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="330" x="1900" y="1575" as="geometry" />
         </mxCell>
-        <mxCell id="c79" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;U6: คนตรวจ&lt;/b&gt;&lt;br&gt;ได้ใบตรวจเฉพาะรายการที่ถูกติดธง&lt;br&gt;คนตัดสินแต่ละรายการ: ต้องแก้ / ดูอย่างเดียว / ไม่กระทบ&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ปรับสถานะของ edge ที่ทำให้รายการนั้นถูกพบ: ไม่กระทบ → ลดความมั่นใจของ edge (ไม่ลบ)&lt;/i&gt;" vertex="1">
+        <mxCell id="c80" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;U6: คนตรวจ&lt;/b&gt;&lt;br&gt;ได้ใบตรวจเฉพาะรายการที่ถูกติดธง&lt;br&gt;คนตัดสินแต่ละรายการ: ต้องแก้ / ดูอย่างเดียว / ไม่กระทบ&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี edge ใหม่&lt;/i&gt;&lt;br&gt;&lt;i&gt;ปรับสถานะของ edge ที่ทำให้รายการนั้นถูกพบ: ไม่กระทบ → ลดความมั่นใจของ edge (ไม่ลบ)&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="330" x="1900" y="1795" as="geometry" />
         </mxCell>
-        <mxCell id="c80" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;รายงานผลกระทบ&lt;/b&gt;&lt;br&gt;รายการ chunk ที่ต้องแก้ พร้อมเหตุผล ตำแหน่ง และหลักฐาน ส่งให้เจ้าของเอกสาร" vertex="1">
+        <mxCell id="c81" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;รายงานผลกระทบ&lt;/b&gt;&lt;br&gt;รายการ chunk ที่ต้องแก้ พร้อมเหตุผล ตำแหน่ง และหลักฐาน ส่งให้เจ้าของเอกสาร" vertex="1">
           <mxGeometry height="110" width="310" x="2290" y="1835" as="geometry" />
         </mxCell>
-        <mxCell id="c81" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;U7: อัปเดตเต็ม&lt;/b&gt;&lt;br&gt;ปิด edge ของ chunk ที่ไม่อยู่ในเวอร์ชันปัจจุบันแล้ว (ใส่วันสิ้นสุด ไม่ลบ)&lt;br&gt;ทำขั้น 6 กับชื่อ entity ใหม่ และขั้น 7 กับ chunk ที่แก้ไขหรือเพิ่มใหม่&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; ALIAS_OF (ถ้ามีชื่อซ้ำ), DEPENDS ใหม่&lt;br&gt;&lt;i&gt;edge เดิมของ chunk ที่ถูกแทนที่ถูกปิด&lt;/i&gt;" vertex="1">
+        <mxCell id="c82" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;U7: อัปเดตเต็ม&lt;/b&gt;&lt;br&gt;ปิด edge ของ chunk ที่ไม่อยู่ในเวอร์ชันปัจจุบันแล้ว (ใส่วันสิ้นสุด ไม่ลบ)&lt;br&gt;ทำขั้น 6 กับชื่อ entity ใหม่ และขั้น 7 กับ chunk ที่แก้ไขหรือเพิ่มใหม่&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; ALIAS_OF (ถ้ามีชื่อซ้ำ), DEPENDS ใหม่&lt;br&gt;&lt;i&gt;edge เดิมของ chunk ที่ถูกแทนที่ถูกปิด&lt;/i&gt;" vertex="1">
           <mxGeometry height="190" width="330" x="1900" y="2015" as="geometry" />
         </mxCell>
-        <mxCell id="c82" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;กราฟเป็นปัจจุบัน&lt;/b&gt;&lt;br&gt;พร้อมรับเอกสารชุดถัดไป" vertex="1">
+        <mxCell id="c83" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;กราฟเป็นปัจจุบัน&lt;/b&gt;&lt;br&gt;พร้อมรับเอกสารชุดถัดไป" vertex="1">
           <mxGeometry height="80" width="310" x="2290" y="2070" as="geometry" />
-        </mxCell>
-        <mxCell id="e83" edge="1" parent="1" source="c71" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c72" value="">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e84" edge="1" parent="1" source="c72" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c73" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e85" edge="1" parent="1" source="c73" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c75" value="เวอร์ชันใหม่">
+        <mxCell id="e85" edge="1" parent="1" source="c73" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c74" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e86" edge="1" parent="1" source="c73" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c74" value="เอกสารใหม่">
+        <mxCell id="e86" edge="1" parent="1" source="c74" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c76" value="เวอร์ชันใหม่">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e87" edge="1" parent="1" source="c74" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="c77" value="ตรวจผลกระทบต่อเอกสารเดิมด้วย">
+        <mxCell id="e87" edge="1" parent="1" source="c74" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c75" value="เอกสารใหม่">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e88" edge="1" parent="1" source="c75" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c78" value="ตรวจผลกระทบต่อเอกสารเดิมด้วย">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="2445" y="1345" />
+              <mxPoint x="2450" y="1345" />
             </Array>
           </mxGeometry>
-        </mxCell>
-        <mxCell id="e88" edge="1" parent="1" source="c75" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c76" value="">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e89" edge="1" parent="1" source="c76" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c77" value="">
           <mxGeometry relative="1" as="geometry" />
@@ -283,35 +280,47 @@
         <mxCell id="e91" edge="1" parent="1" source="c78" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c79" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e92" edge="1" parent="1" source="c79" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c80" value="">
+        <mxCell id="e92" edge="1" parent="1" source="c79" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c80" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e93" edge="1" parent="1" source="c79" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c81" value="">
+        <mxCell id="e93" edge="1" parent="1" source="c80" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;" target="c81" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e94" edge="1" parent="1" source="c81" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c82" value="">
+        <mxCell id="e94" edge="1" parent="1" source="c80" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c82" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="c95" parent="1" style="text;html=1;align=left;fontSize=12;" value="&lt;b&gt;Legend:&lt;/b&gt;" vertex="1">
+        <mxCell id="e95" edge="1" parent="1" source="c82" style="endArrow=block;endFill=1;html=1;rounded=1;fontSize=11;labelBackgroundColor=#ffffff;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" target="c83" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c96" parent="1" style="text;html=1;align=left;fontSize=12;" value="&lt;b&gt;Legend:&lt;/b&gt;" vertex="1">
           <mxGeometry height="30" width="60" x="40" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c96" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" value="กฎ / แยกโครงสร้าง (ไม่ใช้ AI)" vertex="1">
+        <mxCell id="c97" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" value="กฎ / แยกโครงสร้าง (ไม่ใช้ AI)" vertex="1">
           <mxGeometry height="30" width="210" x="100" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c97" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="โมเดล embedding" vertex="1">
+        <mxCell id="c98" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="โมเดล embedding" vertex="1">
           <mxGeometry height="30" width="210" x="330" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c98" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" value="LLM" vertex="1">
+        <mxCell id="c99" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" value="LLM" vertex="1">
           <mxGeometry height="30" width="210" x="560" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c99" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="คนออกแบบ / ตัดสิน / ตรวจ" vertex="1">
+        <mxCell id="c100" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="คนออกแบบ / ตัดสิน / ตรวจ" vertex="1">
           <mxGeometry height="30" width="210" x="790" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c100" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="จุดเริ่ม / ที่จัดเก็บ / ผลลัพธ์" vertex="1">
+        <mxCell id="c101" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="จุดเริ่ม / ที่จัดเก็บ / ผลลัพธ์" vertex="1">
           <mxGeometry height="30" width="210" x="1020" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="c101" parent="1" style="text;html=1;align=left;fontSize=11;" value="&lt;b&gt;เส้นประ&lt;/b&gt; = สร้างภายหลังหรือทางเลือก" vertex="1">
+        <mxCell id="c102" parent="1" style="text;html=1;align=left;fontSize=11;" value="&lt;b&gt;เส้นประ&lt;/b&gt; = สร้างภายหลังหรือทางเลือก" vertex="1">
           <mxGeometry height="30" width="530" x="1260" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;ขั้น 7: หาการพึ่งพากัน&lt;/b&gt;&lt;br&gt;หาส่วนที่ใช้ข้อเท็จจริงของส่วนอื่นโดยไม่ได้อ้างตรง ๆ&lt;br&gt;จับคู่เฉพาะส่วนที่น่าจะเกี่ยว (entity ร่วม / ความหมายใกล้)&lt;br&gt;LLM ตัดสิน ต้องยกข้อความหลักฐานจากทั้งสองส่วน&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; DEPENDS (chunk → chunk)" vertex="1">
+          <mxGeometry height="190" width="230" x="1000" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;ขั้น 6: รวม entity ซ้ำ&lt;/b&gt;&lt;br&gt;หาชื่อที่น่าจะเป็นสิ่งเดียวกัน (ชื่อสั้น / ยาว, ไทย / อังกฤษ)&lt;br&gt;LLM ช่วยตัดสิน + กฎตรวจ&lt;br&gt;เก็บแบบย้อนกลับได้&lt;br&gt;&lt;br&gt;&lt;b&gt;Node ที่ได้:&lt;/b&gt; &lt;i&gt;ไม่มี node ใหม่&lt;/i&gt;&lt;br&gt;&lt;b&gt;Edge ที่ได้:&lt;/b&gt; ALIAS_OF (ชื่อที่ซ้ำ → entity หลัก)&lt;br&gt;&lt;i&gt;entity ที่ถูกรวมถูกทำเครื่องหมาย ไม่ถูกลบ&lt;/i&gt;" vertex="1">
+          <mxGeometry height="190" width="230" x="1270" y="485" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacing=8;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;คนตัดสินเมื่อระบบไม่แน่ใจ&lt;/b&gt;&lt;br&gt;ระบบแสดงเอกสารที่ใกล้เคียงที่สุด 2–3 ฉบับ พร้อมคะแนน คนเลือกว่า:&lt;br&gt;• ไฟล์นี้เป็น&lt;b&gt;เวอร์ชันใหม่&lt;/b&gt;ของเอกสารฉบับไหน หรือ&lt;br&gt;• เป็น&lt;b&gt;เอกสารใหม่&lt;/b&gt;" vertex="1">
+          <mxGeometry height="100" width="250" x="720" y="365" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
