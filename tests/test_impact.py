@@ -74,3 +74,36 @@ def test_english_link_to_a_heading_is_a_section_citation(tmp_path):
     uid = guide.blocks[0].block.block_uid
     change = ChangeItem("X3", "t-career", "Your First 90 Days", "old", "new", "en")
     assert uid in graph_signals(view, change, {uid})["cite_section"]
+
+
+def test_view_from_graph_records_gives_the_same_signals(tmp_path):
+    act = _doc(tmp_path, "act.md", "t-act", "พระราชบัญญัติทดสอบ พ.ศ. 2541", "th",
+               "## หมวด 11 ค่าชดเชย\n\n### มาตรา ๑๑๘\n\n"
+               "ค่าชดเชย หมายความว่า เงินที่นายจ้างจ่ายให้แก่ลูกจ้างเมื่อเลิกจ้าง\n")
+    reg = _doc(tmp_path, "reg.md", "t-reg", "ระเบียบทดสอบ", "th",
+               "## ข้อ 1\n\nตามมาตรา ๑๑๘ แห่งพระราชบัญญัติทดสอบ พ.ศ. ๒๕๔๑\n\n"
+               "## ข้อ 2\n\nให้จ่ายค่าชดเชยภายในสามสิบวัน\n")
+    mem = GraphView([act, reg], CFG.layer1, hub_cut=None)
+    # records shaped like Store.current_body_blocks / Store.impact_edges
+    blocks = [{"uid": u, "text": b.text, "doc_key": b.doc_key, "language": b.language}
+              for u, b in mem.blocks.items()]
+    refs = [{"uid": u, "target": t, "cited_section": s}
+            for t, rows in mem.refs.items() for u, s in rows]
+    mentions = []
+    for u, b in mem.blocks.items():
+        for e in b.entities:
+            vals = [a for a in b.values if a.entity_id == e]
+            mentions.append({"uid": u, "entity": e, "hub": False,
+                             "value": [a.value.value for a in vals] or None,
+                             "unit": [a.value.unit for a in vals],
+                             "family": [a.value.family for a in vals],
+                             "base_value": [a.value.base_value for a in vals],
+                             "base_unit": [a.value.base_unit for a in vals],
+                             "value_text": [a.value.value_text for a in vals],
+                             "attribute": [a.attribute for a in vals]})
+    graph = GraphView.from_graph(blocks, {"refs": refs, "mentions": mentions, "loose": [],
+                                          "hubs": []}, [act, reg])
+    change = ChangeItem("X", "t-act", "หมวด 11 ค่าชดเชย > มาตรา 118",
+                        "ให้จ่ายค่าชดเชยภายในสามสิบวัน", "ให้จ่ายค่าชดเชยภายในเจ็ดวัน", "th")
+    cands = {u for u, b in mem.blocks.items() if b.doc_key == "t-reg"}
+    assert graph_signals(graph, change, cands) == graph_signals(mem, change, cands)

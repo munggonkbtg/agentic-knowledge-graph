@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from pathlib import PurePosixPath
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from kg.models import (
 PIPELINE_LABELS = ("Document", "Version", "Section", "Block", "Alias", "Entity")
 
 SMOKE_LABEL = "KgSmokeTest"
+VECTOR_INDEX = "block_embedding"
 
 # Uniqueness constraints: Neo4j refuses a second node with the same key, and each
 # constraint also creates an index on that key, so MERGE on it is fast.
@@ -111,7 +113,7 @@ class Store:
             removed=left == 0,
         )
 
-    def ensure_schema(self) -> list[str]:
+    def ensure_schema(self, vector_dimensions: int = 1024) -> list[str]:
         """Create constraints and indexes if they do not exist. Safe to rerun."""
         statements: list[str] = []
         for name, (label, prop) in _CONSTRAINTS.items():
@@ -132,6 +134,13 @@ class Store:
                 f"CREATE INDEX rel_{edge_type.value.lower()}_valid_to IF NOT EXISTS "
                 f"FOR ()-[r:{edge_type.value}]-() ON (r.valid_to)"
             )
+        # Vector index on Block.embedding for hybrid search (M5; e5 vectors are
+        # normalized, so cosine similarity).
+        statements.append(
+            f"CREATE VECTOR INDEX {VECTOR_INDEX} IF NOT EXISTS FOR (b:Block) ON (b.embedding) "
+            "OPTIONS {indexConfig: {`vector.dimensions`: "
+            f"{vector_dimensions}, `vector.similarity_function`: 'cosine'}}}}"
+        )
         for statement in statements:
             self._run(statement)
         return statements
@@ -303,6 +312,162 @@ class Store:
             session.execute_write(_write_upload_tx, payload)
         return {"blocks": len(new_blocks), "reused_nodes": len(reuse),
                 "new_nodes": len(new_blocks) - len(reuse)}
+
+    # -- M5: embeddings, current blocks, vector search ----------------------
+
+    def current_body_blocks(self) -> list[dict[str, object]]:
+        """Body blocks of the current version (valid_to null) of every document in
+        the store, with their position in that version."""
+        return [dict(r) for r in self._run(
+            """
+            MATCH (d:Document)-[:HAS_VERSION]->(v:Version) WHERE v.valid_to IS NULL
+            MATCH (v)-[:CONTAINS]->(:Section)-[:CONTAINS*0..]->(:Section)
+                  -[c:CONTAINS {version_id: v.version_id}]->(b:Block)
+            WHERE b.role = 'body'
+            RETURN DISTINCT b.block_uid AS uid, b.text AS text, d.doc_key AS doc_key,
+                   d.language AS language, v.version_id AS version_id,
+                   v.source_file AS file, c.block_id AS block_id,
+                   c.line_start AS line_start, c.line_end AS line_end,
+                   b.embedding_model AS embedding_model
+            ORDER BY uid
+            """
+        ).records]
+
+    def impact_edges(self) -> dict[str, list[dict[str, object]]]:
+        """What the impact search traverses (valid edges only): REFERENCES from
+        current blocks, MENTIONS from current blocks with their values, values
+        kept on blocks without an entity, and the hub entities."""
+        current = ("MATCH (d:Document)-[:HAS_VERSION]->(v:Version) WHERE v.valid_to IS NULL "
+                   "MATCH (v)-[:CONTAINS]->(:Section)-[:CONTAINS*0..]->(:Section)"
+                   "-[:CONTAINS {version_id: v.version_id}]->(b:Block) WHERE b.role = 'body' ")
+        refs = [dict(r) for r in self._run(
+            current + """
+            MATCH (b)-[r:REFERENCES]->(t:Document) WHERE r.valid_to IS NULL
+            RETURN DISTINCT b.block_uid AS uid, t.doc_key AS target,
+                   r.cited_section AS cited_section
+            """).records]
+        mentions = [dict(r) for r in self._run(
+            current + """
+            MATCH (b)-[m:MENTIONS]->(e:Entity) WHERE m.valid_to IS NULL
+            RETURN DISTINCT b.block_uid AS uid, e.entity_id AS entity, e.hub AS hub,
+                   m.value AS value, m.unit AS unit, m.family AS family,
+                   m.base_value AS base_value, m.base_unit AS base_unit,
+                   m.value_text AS value_text, m.attribute AS attribute
+            """).records]
+        loose = [dict(r) for r in self._run(
+            current + """
+            WITH DISTINCT b WHERE b.unattached_value IS NOT NULL
+            RETURN b.block_uid AS uid, b.unattached_value AS value,
+                   b.unattached_unit AS unit, b.unattached_family AS family,
+                   b.unattached_base_value AS base_value,
+                   b.unattached_base_unit AS base_unit,
+                   b.unattached_value_text AS value_text,
+                   b.unattached_attribute AS attribute
+            """).records]
+        hubs = [r["e"] for r in self._run(
+            "MATCH (e:Entity) WHERE e.hub = true RETURN e.entity_id AS e").records]
+        return {"refs": refs, "mentions": mentions, "loose": loose, "hubs": hubs}
+
+    def version_changes(self, doc_key: str) -> dict[str, object] | None:
+        """The diff stored for the current version of a document against the
+        version it supersedes: changed blocks (edited / moved / added, with the
+        previous block) and removed blocks, with texts."""
+        rec = self._run(
+            """
+            MATCH (d:Document {doc_key: $k})-[:HAS_VERSION]->(v:Version)
+            WHERE v.valid_to IS NULL
+            OPTIONAL MATCH (v)-[:SUPERSEDES]->(old:Version)
+            RETURN v.version_id AS vid, old.version_id AS old_vid,
+                   coalesce(v.removed_block_uids, []) AS removed
+            """, k=doc_key).records
+        if not rec:
+            return None
+        vid, old_vid, removed = rec[0]["vid"], rec[0]["old_vid"], rec[0]["removed"]
+        changed = [dict(r) for r in self._run(
+            """
+            MATCH (:Section)-[c:CONTAINS {version_id: $vid}]->(b:Block)
+            WHERE c.diff_status IN ['edited', 'moved', 'added'] AND b.role = 'body'
+            OPTIONAL MATCH (p:Block {block_uid: c.previous_block_uid})
+            OPTIONAL MATCH (:Section)-[pc:CONTAINS]->(p)
+            WITH b, c, p, pc ORDER BY pc.version_id
+            WITH b, c, p, collect(pc)[0] AS pc
+            RETURN b.block_uid AS uid, b.text AS new_text, c.block_id AS block_id,
+                   c.diff_status AS status, p.block_uid AS prev_uid, p.text AS old_text,
+                   p.doc_key AS prev_doc, pc.block_id AS prev_block_id
+            ORDER BY c.order, uid
+            """, vid=vid).records]
+        gone = [dict(r) for r in self._run(
+            """
+            UNWIND $uids AS u
+            MATCH (b:Block {block_uid: u}) WHERE b.role = 'body'
+            OPTIONAL MATCH (:Section)-[c:CONTAINS {version_id: $old}]->(b)
+            RETURN b.block_uid AS uid, b.text AS old_text, c.block_id AS block_id
+            """, uids=removed, old=old_vid).records]
+        return {"version_id": vid, "old_version_id": old_vid, "changed": changed,
+                "removed": gone}
+
+    def write_embeddings(self, rows: list[tuple[str, list[float]]], model: str) -> int:
+        if not rows:
+            return 0
+        self._run(
+            """
+            UNWIND $rows AS x
+            MATCH (b:Block {block_uid: x.uid})
+            SET b.embedding = x.vec, b.embedding_model = $model
+            """,
+            rows=[{"uid": u, "vec": v} for u, v in rows], model=model,
+        )
+        return len(rows)
+
+    def vector_search(self, vector: list[float], k: int) -> list[tuple[str, float]]:
+        """Nearest blocks by cosine similarity (any version; the caller filters)."""
+        return [(r["uid"], r["score"]) for r in self._run(
+            f"""
+            CALL db.index.vector.queryNodes('{VECTOR_INDEX}', $k, $v) YIELD node, score
+            RETURN node.block_uid AS uid, score
+            """, k=k, v=vector).records]
+
+    def write_diff_results(self, diffs: list[DocumentDiff]) -> dict[str, int]:
+        """Store what the diff found for one upload event (workflow step 9), after
+        the new versions are written:
+
+        * on the CONTAINS edge from a section of the new version to each block:
+          diff_status (unchanged / edited / moved / added), previous_block_uid
+          (the old block, for edited / moved / unchanged) and diff_similarity;
+        * on the new Version: removed_block_uids (old blocks with no partner).
+
+        A moved block's new node usually sits in another document of the event
+        (E3 -> E2), so the whole event is written together. Where one new block is
+        claimed twice (added in its own document, moved in from another), moved
+        wins."""
+        new_vid = {d.new.document.doc_key: d.new.version.version_id for d in diffs if d.new}
+        rank = {"added": 0, "unchanged": 1, "edited": 2, "moved": 3}
+        rows: dict[tuple[str, str], dict] = {}
+        removed: dict[str, list[str]] = defaultdict(list)
+        for d in diffs:
+            for m in d.matches:
+                if m.status == MatchStatus.REMOVED:
+                    if d.new is not None:
+                        removed[d.new.version.version_id].append(m.old.block.block_uid)
+                    continue
+                for pb in m.new_blocks:
+                    uid = (m.old.block.block_uid if m.status == MatchStatus.UNCHANGED
+                           else pb.block.block_uid)
+                    vid = new_vid.get(pb.block.doc_key)
+                    if vid is None:
+                        continue
+                    row = {"vid": vid, "uid": uid, "status": m.status.value,
+                           "prev": m.old.block.block_uid if m.old else None,
+                           "sim": m.similarity}
+                    old = rows.get((vid, uid))
+                    if old is None or rank[row["status"]] > rank[old["status"]]:
+                        rows[(vid, uid)] = row
+        p = {"rows": list(rows.values()),
+             "removed": [{"vid": v, "uids": sorted(u)} for v, u in removed.items()],
+             "versions": sorted(new_vid.values())}
+        with self._driver.session(database=self._database) as session:
+            session.execute_write(_write_diff_tx, p)
+        return {"blocks": len(rows), "removed": sum(len(u) for u in removed.values())}
 
     def delete_documents(self, doc_key_prefix: str) -> int:
         """Delete documents whose doc_key starts with the prefix, with their versions,
@@ -661,6 +826,34 @@ def _write_layer0_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
 def _native(value):
     """neo4j DateTime -> Python datetime (other values pass through)."""
     return value.to_native() if hasattr(value, "to_native") else value
+
+
+def _write_diff_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:
+    tx.run(
+        """
+        UNWIND $rows AS x
+        MATCH (:Section)-[r:CONTAINS {version_id: x.vid}]->(:Block {block_uid: x.uid})
+        SET r.diff_status = x.status, r.previous_block_uid = x.prev,
+            r.diff_similarity = x.sim
+        """,
+        p,
+    ).consume()
+    tx.run(
+        """
+        UNWIND $versions AS vid
+        MATCH (v:Version {version_id: vid})
+        SET v.removed_block_uids = []
+        """,
+        p,
+    ).consume()
+    tx.run(
+        """
+        UNWIND $removed AS x
+        MATCH (v:Version {version_id: x.vid})
+        SET v.removed_block_uids = x.uids
+        """,
+        p,
+    ).consume()
 
 
 def _write_upload_tx(tx: ManagedTransaction, p: dict[str, object]) -> None:

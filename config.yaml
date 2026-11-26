@@ -97,6 +97,7 @@ embedding:
   query_prefix: "query: "      # e5 expects these prefixes
   passage_prefix: "passage: "
   device: cpu
+  dimensions: 1024             # e5-large; size of the Neo4j vector index on Block
 
 layer2:
   # Entities (M4, src/kg/layer2_entities.py). An entity mentioned in more than
@@ -143,3 +144,5 @@ impact:
   # 2026-11-26 from eval/results/m5_impact_ai.md (AI labels): graph_first
   # recall@5 0.66 vs rrf 0.54 vs hybrid alone 0.28. rrf is kept for comparison.
   ranking: graph_first
+  top_n: 20             # candidates reported per change (step 13 will cut this list)
+  report_dir: data/reports   # not in git: reports quote document text

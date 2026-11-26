@@ -344,3 +344,44 @@ def test_layer2_values_on_mentions_and_unattached_values_on_blocks(store, prefix
         assert [(r["v"], r["u"], r["rv"]) for r in blk] == [([2.0], ["work_day"], "test-A")]
     finally:
         assert store.delete_entities(prefix) == 1
+
+
+def test_diff_results_are_stored_and_read_back_as_changes(store, prefix, tmp_path):
+    from kg.impact import changes_from_stored_diff
+
+    key = prefix + "policy"
+    v1 = parse_file(_file(tmp_path, "a.md", key, "Policy", f"## Leave\n\n{P1}\n\n{P2}\n\n{P3}\n"),
+                    CFG.layer0, T1)
+    store.write_layer0(v1)
+    edited = P2.replace("two working days", "five working days")
+    (tmp_path / "v2").mkdir()
+    f2 = _file(tmp_path / "v2", "a.md", key, "Policy", f"## Leave\n\n{P1}\n\n{edited}\n\n{NEW}\n")
+    diffs, _ = _upload(store, [f2], T2)
+    res = store.write_diff_results(diffs)
+    assert res["removed"] == 1  # P3
+    ch = store.version_changes(key)
+    status = sorted(c["status"] for c in ch["changed"])
+    assert status == ["added", "edited"]
+    ed = next(c for c in ch["changed"] if c["status"] == "edited")
+    assert ed["old_text"] == P2 and ed["new_text"] == edited and ed["prev_doc"] == key
+    assert [r["old_text"] for r in ch["removed"]] == [P3]
+    items = changes_from_stored_diff(key, ch, "en")
+    assert {i.change_id.split("-")[0] for i in items} == {"edited", "added", "removed"}
+    assert all(i.section_path == "Leave" for i in items)
+    # current body blocks: the new version only
+    cur = [b for b in store.current_body_blocks() if b["doc_key"] == key]
+    assert sorted(b["text"] for b in cur) == sorted([P1, edited, NEW])
+
+
+def test_embeddings_and_vector_search(store, prefix, tmp_path):
+    key = prefix + "vec"
+    doc = parse_file(_file(tmp_path, "v.md", key, "Vec", f"## A\n\n{P1}\n\n{P2}\n"), CFG.layer0, T1)
+    store.write_layer0(doc)
+    store.ensure_schema(CFG.embedding.dimensions)
+    dim = CFG.embedding.dimensions
+    a = [1.0] + [0.0] * (dim - 1)
+    b = [0.0, 1.0] + [0.0] * (dim - 2)
+    uids = [pb.block.block_uid for pb in doc.blocks]
+    assert store.write_embeddings([(uids[0], a), (uids[1], b)], "test-model") == 2
+    hits = [u for u, _ in store.vector_search(a, 50) if u in uids]
+    assert hits[0] == uids[0]

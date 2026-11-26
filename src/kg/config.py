@@ -79,6 +79,7 @@ class EmbeddingSettings(BaseModel):
     query_prefix: str = "query: "
     passage_prefix: str = "passage: "
     device: str = "cpu"
+    dimensions: int = Field(default=1024, ge=1)  # vector index size in Neo4j
 
 
 class Layer2Settings(BaseModel):
@@ -118,6 +119,8 @@ class ImpactSettings(BaseModel):
     # graph_first: graph-reached blocks by signal strength, then hybrid order
     # rrf: Reciprocal Rank Fusion of hybrid and the graph signal rankings
     ranking: Literal["graph_first", "rrf"] = "graph_first"
+    top_n: int = Field(default=20, ge=1)  # candidates reported per change
+    report_dir: Path = Path("data/reports")  # not in git (reports quote document text)
 
 
 class AppConfig(BaseModel):

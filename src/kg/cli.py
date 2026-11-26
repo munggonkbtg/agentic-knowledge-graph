@@ -68,10 +68,12 @@ def ping(config: Path = ConfigOption) -> None:
 
 @app.command("init-schema")
 def init_schema(config: Path = ConfigOption) -> None:
-    """Create uniqueness constraints and indexes (safe to rerun)."""
+    """Create uniqueness constraints and indexes, including the vector index on
+    Block.embedding (safe to rerun)."""
+    cfg = load_config(config)
     try:
         with _open_store(config) as store:
-            statements = store.ensure_schema()
+            statements = store.ensure_schema(cfg.embedding.dimensions)
             existing = store.schema_names()
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
@@ -247,6 +249,111 @@ def _build_layer2(config: Path) -> None:
 
 
 @app.command()
+def embed(config: Path = ConfigOption) -> None:
+    """Write e5 embeddings on the body blocks of every document's current version
+    that have none, or one from another model (needs the `embed` dependency
+    group: uv run --group embed kg embed)."""
+    cfg = load_config(config)
+    try:
+        with _open_store(config) as store:
+            blocks = store.current_body_blocks()
+            todo = [b for b in blocks if b["embedding_model"] != cfg.embedding.model]
+            typer.echo(f"  {len(blocks)} current body blocks, {len(todo)} need an embedding")
+            if todo:
+                from kg.embedding import Embedder
+
+                emb = Embedder(cfg.embedding)
+                vecs = emb.embed([b["text"] for b in todo], "passage")
+                n = store.write_embeddings([(b["uid"], v) for b, v in zip(todo, vecs)],
+                                           cfg.embedding.model)
+                typer.echo(f"  wrote {n} embeddings ({emb.encoded} newly encoded, "
+                           f"{emb.encode_seconds:.0f} s)")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho("Embeddings up to date.", fg="green")
+
+
+@app.command()
+def impact(
+    doc: list[str] = typer.Option(..., "--doc", help="doc_key of an uploaded document "
+                                  "(repeat for every document of the upload event)"),
+    config: Path = ConfigOption,
+) -> None:
+    """Impact analysis for the current version of each --doc (workflow steps 11-12):
+    candidate blocks from the graph (valid REFERENCES, MENTIONS and values), then
+    hybrid search (character trigrams + e5 vector index), ranked as set in
+    config `impact.ranking`. Writes a CSV report under `impact.report_dir`.
+    Needs the `embed` dependency group: uv run --group embed kg impact --doc ..."""
+    import csv as _csv
+
+    from kg.embedding import Embedder
+    from kg.impact import (SIGNALS, Char3Index, GraphView, changes_from_stored_diff,
+                           graph_first, graph_signals, impact_ranking, rrf)
+
+    cfg = load_config(config)
+    try:
+        with _open_store(config) as store:
+            blocks = store.current_body_blocks()
+            if any(b["embedding_model"] != cfg.embedding.model for b in blocks):
+                typer.secho("Some current blocks have no embedding: run `kg embed` first.",
+                            fg="red", err=True)
+                raise typer.Exit(1)
+            keys = sorted(e.doc_key for e in store.registry_entries())
+            docs = [d for k in keys if (d := store.load_current_version(k)) is not None]
+            view = GraphView.from_graph(blocks, store.impact_edges(), docs,
+                                        load_manual(cfg.layer2.manual_file))
+            info = {b["uid"]: b for b in blocks}
+            lang = {d.document.doc_key: d.document.language.value for d in docs}
+            items, changed_uids = [], set()
+            for k in doc:
+                diff = store.version_changes(k)
+                if diff is None or diff["old_version_id"] is None and not diff["changed"]:
+                    typer.secho(f"  {k}: no stored diff (upload it with `kg upload`)",
+                                fg="yellow")
+                    continue
+                for c in diff["changed"]:
+                    changed_uids |= {c["uid"], c["prev_uid"]}
+                changed_uids |= {r["uid"] for r in diff["removed"]}
+                items += [(k, it) for it in changes_from_stored_diff(k, diff, lang.get(k, "en"))]
+            cands = {u: b["text"] for u, b in info.items() if u not in changed_uids}
+            char3 = Char3Index(cands)
+            emb = Embedder(cfg.embedding)
+            rows = []
+            for k, it in items:
+                query = it.old_text + "\n" + it.new_text
+                q = emb.embed([query], "query")[0]
+                e5 = [u for u, _ in store.vector_search(q, len(info)) if u in cands]
+                hybrid = rrf(char3.ranking(query), e5)
+                sig = graph_signals(view, it, set(cands))
+                order = (graph_first(sig, hybrid) if cfg.impact.ranking == "graph_first"
+                         else impact_ranking(sig, hybrid))
+                for rank, u in enumerate(order[: cfg.impact.top_n], start=1):
+                    b = info[u]
+                    rows.append({
+                        "document": k, "change": it.change_id, "changed_section": it.section_path,
+                        "changed_block_uid": it.block_uid,
+                        "rank": rank, "file": b["file"], "block_id": b["block_id"],
+                        "block_uid": u,
+                        "lines": f"{b['line_start']}-{b['line_end']}",
+                        "signals": ";".join(s for s in SIGNALS if u in sig[s]) or "hybrid",
+                        "text": b["text"][:200].replace("\n", " ")})
+                typer.echo(f"  {k} {it.change_id} ({it.section_path}): "
+                           f"{sum(1 for s in SIGNALS for _ in sig[s])} graph hits, "
+                           f"top {cfg.impact.top_n} reported")
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    cfg.impact.report_dir.mkdir(parents=True, exist_ok=True)
+    out = cfg.impact.report_dir / f"impact_{'_'.join(doc)}_{datetime.now():%Y%m%d-%H%M%S}.csv"
+    with out.open("w", encoding="utf-8-sig", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=list(rows[0]) if rows else ["document"])
+        w.writeheader()
+        w.writerows(rows)
+    typer.secho(f"{len(items)} changes, {len(rows)} candidate rows -> {out}", fg="green")
+
+
+@app.command()
 def registry(config: Path = ConfigOption) -> None:
     """Show the document registry: the names and file names each document can be
     cited by. Add reviewed extra names in registry/aliases.yaml."""
@@ -419,7 +526,8 @@ def upload(
                 old = store.load_current_version(doc.document.doc_key)
                 if old is not None:
                     olds[doc.document.doc_key] = old
-            for d in diff_event(olds, todo, cfg.diff, norm):
+            diffs = diff_event(olds, todo, cfg.diff, norm)
+            for d in diffs:
                 counts = Counter(m.status.value for m in d.matches)
                 # one transaction per document
                 written = store.write_upload(d, provenance[d.doc_key])
@@ -428,6 +536,11 @@ def upload(
                 typer.echo(f"      diff {dict(counts)}")
                 typer.echo(f"      nodes reused {written['reused_nodes']}, "
                            f"new {written['new_nodes']}")
+            if diffs:
+                # after every document of the event is written: moves cross documents
+                res = store.write_diff_results(list(diffs))
+                typer.echo(f"  diff stored on {res['blocks']} blocks, "
+                           f"{res['removed']} removed blocks listed")
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return

@@ -15,7 +15,7 @@ only in commit messages. Measurements are from the pilot set unless stated.
 | M3 Layer 1 | **Built, not verified** (started before M2, at the user's request). Document identification (`src/kg/identify.py`) and `REFERENCES` (`src/kg/layer1_references.py`, rule_version L1-v3). Held-out test against **AI labels**: precision 0.94, recall 0.94. **To verify:** a person fills `m3_references_test_sample_human.csv` blind |
 | M5 change test set | Built 2026-11-25 before any upload or impact run (`eval/make_change_test_set.py`): 40 change items (event1 15 incl. the sabbatical edit, event2 all 13 incl. the severance move, event3 12), 141 pooled candidates to judge blind (char-trigram TF-IDF, section-number search, layer 1 REFERENCES, 15 random per event) plus free additions. Pool includes layer 1, part of the system under test: report this. **All M5 labels below come from an AI reviewer** (not blind for the synthetic edits, which it wrote). **Labelled 2026-11-25:** 141 candidates, 0 additions; needs_revision yes = 1 (E4 link to the renamed E3 heading, kind cites), no = 140; the 45 random candidates had no yes. Too few positives to measure recall per kind. **Decided:** (1) second label `needs_review` (the block should be looked at because it states, cites or depends on changed content, even if its text stays correct), added to the same sheet, earlier labels kept (backup m5_candidates.before_review_column.csv, also AI); (2) synthetic edits (`eval/make_synthetic_events.py`), each its own event on the store after events 1-3, same pooling, reported apart from the real events. **needs_review labelled:** yes = 8 (event1: states 1, depends 1; event2: cites 1, depends 1; event3: cites 4), found by char3 6, cite 4, graph 3 (a block can be found by several); 0 of 45 random. **Synthetic edits:** 15 written by the AI reviewer (E1 5, E3 1, E5 1, T1 8; S07 and S15 are controls with no dependents expected), built into 179 pooled candidates, labelled by the same reviewer: needs_review yes = 33 (states 8, cites 24, depends 1), needs_revision yes/unsure = 6 (states 3, cites 2, depends 1); controls S07 0, S15 1 (a citing block the reviewer found); found by cite 25, char3 14, graph 7; 0 of 75 random. **M5 test set in total** (recounted 2026-11-25 with `eval/m5_labels.py`: m5 + m5s + m5e and the additions, each (change, block) pair once): needs_review **54 rows** (46 in the pools + 8 additions in `m5s_additions_ai.csv`) = **61 change-block pairs**. **Historical** blocks (decided 2026-11-25, `src/kg/historical.py`: every block of an amending act, i.e. a title with "(ฉบับที่ N)", and reason notes starting "หมายเหตุ :- เหตุผลในการประกาศใช้") are kept with their labels but left out of the main numbers and reported as their own row: 11 rows / 11 pairs (states 6, cites 5). **Main: 43 rows (states 7, cites 30, depends 6) = 50 pairs (states 7, cites 34, depends 9).** The additions file has 8 rows (not 10) and no rows for x-S450 / x-S451; those T5 ข้อ 16 blocks are only in m5e (S13-E01 / E02), so nothing is counted twice. x-S097 appears twice (XS11 cites, XS14 depends): two rows. Historical states rows: 6 of 13 (S08-B09, S08-E02, S08-E05, S10-B01, S11-B11, S14-B11), not 8; the other 7 are current rules in E2, E4, T3, T4, T5 |
 | M4 Layer 2 | **Started 2026-11-25.** Steps 1-2 of the continuation brief: entity registry without an LLM, measured (see "M4" below); written to Neo4j with `kg build --layer 2` (L2-v1). Step 3 (values) measured and written to the graph (L2-v2). Step 4 (local LLM fallback) measured offline: not adopted, stopped for the user's decision |
-| M5 Impact analysis | **Started 2026-11-26.** Step 1 (offline retrieval experiment, no LLM check) done; see "M5" below. Steps 2-4 (graph write and `kg impact`, LLM check, review report) not started |
+| M5 Impact analysis | **Started 2026-11-26.** Step 1 (offline retrieval experiment) and step 2 (diff, embeddings and `kg impact` on the graph; events 1-3 uploaded) done; see "M5" below. Steps 3-4 (LLM check, review report) not started |
 | M6-M7 | Not started |
 
 ## Label provenance (corrected 2026-11-25)
@@ -461,6 +461,38 @@ M6-M7.
   likely to be judged. Recall is relative to the judged pool.
 - Not checked: precision of the final list (LLM check), tokens per file, any
   human label.
+
+**Step 2, on the graph (2026-11-26)**:
+- Diff results stored at upload (`Store.write_diff_results`, after every
+  document of the event, because moves cross documents): on the CONTAINS edge
+  of the new version, `diff_status`, `previous_block_uid`, `diff_similarity`;
+  on the new Version, `removed_block_uids`. No new relationship type (the
+  graph keeps the 8 types of the diagram).
+- Embeddings in Neo4j (user decision 2026-11-26): `kg embed` writes the e5
+  vector (1024, normalized) and `embedding_model` on the body blocks of current
+  versions; `kg init-schema` creates the vector index `block_embedding`
+  (cosine). Encoder moved to `src/kg/embedding.py`, same cache as the
+  evaluations.
+- `kg impact --doc KEY [--doc KEY]`: change items from the stored diff
+  (edited / moved / added / removed body blocks), candidates = current body
+  blocks, graph signals read from Neo4j (valid REFERENCES, MENTIONS with values,
+  hub flags; `GraphView.from_graph`), hybrid = trigrams + e5 through the vector
+  index, ranking `impact.ranking` (graph_first), top `impact.top_n` (20) per
+  change to a CSV in `data/reports/` (not in git).
+- **Events 1-3 uploaded into Neo4j** (approved), then the light update:
+  `kg build --layer 1`, `--layer 2`, `kg embed`. Graph after: 13 versions
+  (3 SUPERSEDES), 490 current body blocks, 668 references and 1,225 mentions
+  with 282 values written for the current versions. E2 and T2 are new
+  documents: each has a row in `doc_identification_queue.csv` to confirm.
+  Old versions are closed (valid_to), not deleted; edges on old blocks stay
+  open until the full update (step 15, M6-M7).
+- Check against the experiment (`eval/m5_graph_check.py`, AI labels, 15 real
+  main pairs): recall@5 0.73, @10 0.80, @20 0.87 vs 0.80 / 0.80 / 1.00
+  offline. The difference is C01 and C11: their labelled block (E3
+  "Performance Improvement Plans" b1) moved to E2 in event 2, so it is no
+  longer a current block; the experiment ran on the store before event 2.
+- Event 3 gives 70 changes, not about 104: footnote entries (25 added in T1)
+  are skipped by rule.
 
 ## Open items carried forward
 

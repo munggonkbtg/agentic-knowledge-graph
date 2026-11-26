@@ -26,15 +26,16 @@ on the synthetic stores of the change test set.
 
 from __future__ import annotations
 
+import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
 from kg.layer0_structure import ParsedDocument
 from kg.layer1_references import Registry, RegistryEntry, ReferenceExtractor, compact
 from kg.layer2_entities import EntityMatcher, block_share, body_block_counts, build_registry
-from kg.values import AttachedValue, attach_values, extract_values
+from kg.values import AttachedValue, Value, attach_values, extract_values
 
 RRF_K = 60
 SIGNALS = ("cite_section", "value", "entity", "cite_document")
@@ -48,6 +49,7 @@ class ChangeItem:
     old_text: str
     new_text: str
     language: str
+    block_uid: str = ""  # the changed block: the old one if any, else the new one
 
 
 def section_key(section_path: str) -> str | None:
@@ -110,6 +112,45 @@ class GraphView:
                     ents, vals = self.facts(pb.block.text, lang)
                     self.blocks[pb.block.block_uid] = BlockFacts(
                         d.document.doc_key, pb.block.text, lang, ents, vals)
+
+    @classmethod
+    def from_graph(cls, blocks: list[dict], edges: dict[str, list], docs: list[ParsedDocument],
+                   manual: list[dict] = ()) -> GraphView:
+        """The same view, read from Neo4j: current body blocks
+        (Store.current_body_blocks), valid REFERENCES and MENTIONS with their
+        values and the hub flags (Store.impact_edges). The registry is rebuilt
+        from the current versions only to read entities in the change text (the
+        old and new block), with the same rules and manual file as the graph."""
+        view = cls.__new__(cls)
+        view.refs = defaultdict(list)
+        for r in edges["refs"]:
+            view.refs[r["target"]].append(
+                (r["uid"], compact(r["cited_section"] or "")[0].lower()))
+        view.registry = build_registry(docs, manual)
+        view.matcher = EntityMatcher(view.registry)
+        view.hubs = set(edges["hubs"])
+        view.blocks = {b["uid"]: BlockFacts(b["doc_key"], b["text"], b["language"])
+                       for b in blocks}
+
+        def values_of(row: dict, entity: str | None) -> list[AttachedValue]:
+            if not row.get("value"):
+                return []
+            return [AttachedValue(Value(v, u, f, bv, bu, t, 0, 0), entity, a)
+                    for v, u, f, bv, bu, t, a in zip(row["value"], row["unit"], row["family"],
+                                                    row["base_value"], row["base_unit"],
+                                                    row["value_text"], row["attribute"])]
+
+        for m in edges["mentions"]:
+            b = view.blocks.get(m["uid"])
+            if b is None or m["hub"]:
+                continue
+            b.entities.add(m["entity"])
+            b.values += values_of(m, m["entity"])
+        for r in edges["loose"]:
+            b = view.blocks.get(r["uid"])
+            if b is not None:
+                b.values += values_of(r, None)
+        return view
 
     def facts(self, text: str, language: str) -> tuple[set[str], list[AttachedValue]]:
         spans = self.matcher.find_spans(text, language)
@@ -186,3 +227,53 @@ def impact_ranking(signals: dict[str, dict[str, float]], hybrid: list[str]) -> l
     fused = rrf(hybrid, *[ranked(signals[s], hybrid) for s in SIGNALS if signals[s]])
     return fused + [u for u in hybrid if u not in set(fused)]
 
+
+
+# ---------------------------------------------------------------- hybrid search
+
+
+def _trigrams(text: str) -> Counter:
+    c = compact(text)[0].lower()
+    return Counter(c[i:i + 3] for i in range(max(0, len(c) - 2)))
+
+
+class Char3Index:
+    """TF-IDF over character trigrams (works for Thai without word splitting).
+    Same as the index the M5 change test set was pooled with."""
+
+    def __init__(self, texts: dict[str, str]) -> None:
+        self.tf = {k: _trigrams(v) for k, v in texts.items()}
+        df = Counter(g for tf in self.tf.values() for g in tf)
+        n = len(self.tf)
+        self.idf = {g: math.log((1 + n) / (1 + d)) + 1 for g, d in df.items()}
+        self.vec = {k: self._weigh(tf) for k, tf in self.tf.items()}
+
+    def _weigh(self, tf: Counter) -> dict[str, float]:
+        v = {g: c * self.idf.get(g, 1.0) for g, c in tf.items()}
+        norm = math.sqrt(sum(x * x for x in v.values())) or 1.0
+        return {g: x / norm for g, x in v.items()}
+
+    def ranking(self, text: str) -> list[str]:
+        """Every indexed key, best first (zero scores last, by key)."""
+        q = self._weigh(_trigrams(text))
+        scores = [(sum(w * vec.get(g, 0.0) for g, w in q.items()), key)
+                  for key, vec in self.vec.items()]
+        return [key for _, key in sorted(scores, key=lambda x: (-x[0], x[1]))]
+
+
+def changes_from_stored_diff(doc_key: str, diff: dict, language: str) -> list[ChangeItem]:
+    """Change items from Store.version_changes: edited / moved / added blocks and
+    removed blocks of a document's current version."""
+    out = []
+    for i, c in enumerate(diff["changed"], start=1):
+        where = c["prev_block_id"] if c["status"] in ("edited", "moved") and c["prev_block_id"] \
+            else c["block_id"]
+        out.append(ChangeItem(f"{c['status']}-{i}", c["prev_doc"] or doc_key,
+                              where.split("::")[1] if where else "_", c["old_text"] or "",
+                              c["new_text"] or "", language, c["prev_uid"] or c["uid"]))
+    for i, r in enumerate(diff["removed"], start=1):
+        where = r["block_id"] or ""
+        out.append(ChangeItem(f"removed-{i}", doc_key,
+                              where.split("::")[1] if "::" in where else "_",
+                              r["old_text"] or "", "", language, r["uid"]))
+    return out
