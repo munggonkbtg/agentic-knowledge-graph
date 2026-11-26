@@ -107,3 +107,24 @@ def test_view_from_graph_records_gives_the_same_signals(tmp_path):
                         "ให้จ่ายค่าชดเชยภายในสามสิบวัน", "ให้จ่ายค่าชดเชยภายในเจ็ดวัน", "th")
     cands = {u for u, b in mem.blocks.items() if b.doc_key == "t-reg"}
     assert graph_signals(graph, change, cands) == graph_signals(mem, change, cands)
+
+
+def test_check_labels_and_reorders_but_never_drops():
+    from kg.impact import order_after_check
+
+    order = ["a", "b", "c", "d", "e"]
+    verdicts = {"a": "not_affected", "b": "needs_update", "c": "needs_update", "d": "unsure"}
+    out = order_after_check(order, verdicts, historical={"c"}, top=4)
+    assert out == ["b", "a", "c", "d", "e"]  # c is historical: not moved up
+    assert sorted(out) == sorted(order)
+    assert order_after_check(order, {}, set(), 4) == order
+
+
+def test_evidence_matches_despite_quote_style_and_ellipsis():
+    from kg.impact import evidence_in
+
+    text = "You’re eligible for coverage on your first day. Shares max out after 10 years."
+    assert evidence_in("You're eligible for coverage on your first day.", text)
+    assert evidence_in('"You\'re eligible for coverage..." Shares max out after 10 years.', text)
+    assert not evidence_in("You're eligible after 90 days.", text)
+    assert not evidence_in("", text)

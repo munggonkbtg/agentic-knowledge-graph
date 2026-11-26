@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building the graph, one layer at a time</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Geist', system-ui, sans-serif; background: #f5f5f5; color: #2d3142; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.frame { max-width: 1280px; width: 100%; }
+.diagram-container { width: 100%; overflow-x: auto; }
+svg { width: 100%; min-width: 1280px; display: block; }
+@media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="diagram-container">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kg-build-en-title kg-build-en-desc">
+<title id="kg-build-en-title">Building the graph, one layer at a time</title>
+<desc id="kg-build-en-desc">Five built steps turn documents into a stored graph; two LLM-based layers are planned.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<text x="48" y="64" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.16em">PART 1 · BUILD THE GRAPH</text>
+<text x="48" y="112" fill="#2d3142" font-size="40" font-family="'Instrument Serif', 'Noto Serif', serif">Building the graph, one layer at a time</text>
+<path d="M 256 252 L 292 252" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 500 252 L 536 252" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 744 252 L 780 252" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 988 252 L 1024 252" fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<path d="M 884 320 L 884 432" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<path d="M 984 500 L 1028 500" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<path d="M 1128 432 L 1128 320" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<rect x="48" y="184" width="208" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="184" width="208" height="136" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="60" y="196" width="44" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="82.0" y="207" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">RULES</text>
+<text x="64" y="240" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">1  Identify</text>
+<text x="64" y="264" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">which document is it?</text>
+<text x="64" y="282" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">registry → similarity</text>
+<text x="64" y="300" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">→ a person confirms</text>
+<rect x="292" y="184" width="208" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="292" y="184" width="208" height="136" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="304" y="196" width="72" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="340.0" y="207" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">RULES · L0</text>
+<text x="308" y="240" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">2  Structure</text>
+<text x="308" y="264" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">document → version →</text>
+<text x="308" y="282" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">section → block</text>
+<text x="308" y="300" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">stable block IDs</text>
+<rect x="536" y="184" width="208" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="536" y="184" width="208" height="136" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="548" y="196" width="72" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="584.0" y="207" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">RULES · L1</text>
+<text x="552" y="240" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">3  References</text>
+<text x="552" y="264" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">block cites a law or</text>
+<text x="552" y="282" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">another document</text>
+<text x="552" y="300" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">regex + registry</text>
+<rect x="780" y="184" width="208" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="780" y="184" width="208" height="136" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="792" y="196" width="72" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="828.0" y="207" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">RULES · L2</text>
+<text x="796" y="240" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">4  Entities</text>
+<text x="796" y="264" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">concepts, roles, files</text>
+<text x="796" y="282" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">+ values (10 days)</text>
+<text x="796" y="300" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">registry rules, no NER</text>
+<rect x="1024" y="184" width="208" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="1024" y="184" width="208" height="136" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1.2"/>
+<rect x="1036" y="196" width="44" height="16" rx="2" fill="none" stroke="#bf4520" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1058.0" y="207" fill="#bf4520" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">NEO4J</text>
+<text x="1040" y="240" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">5  Store</text>
+<text x="1040" y="264" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">provenance on every edge</text>
+<text x="1040" y="282" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">vector index (e5)</text>
+<text x="1040" y="300" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">old links closed, kept</text>
+<rect x="784" y="432" width="200" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="784" y="432" width="200" height="136" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="796" y="444" width="60" height="16" rx="2" fill="none" stroke="#5a6580" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="826.0" y="455" fill="#5a6580" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">LLM · L3</text>
+<text x="800" y="488" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Merge duplicates</text>
+<text x="800" y="512" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">Thai ↔ English names</text>
+<text x="800" y="530" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">embeddings + LLM</text>
+<text x="800" y="548" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">reversible</text>
+<rect x="1028" y="432" width="200" height="136" rx="6" fill="#f5f5f5"/>
+<rect x="1028" y="432" width="200" height="136" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="1040" y="444" width="60" height="16" rx="2" fill="none" stroke="#5a6580" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1070.0" y="455" fill="#5a6580" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">LLM · L4</text>
+<text x="1044" y="488" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Dependencies</text>
+<text x="1044" y="512" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">uses a fact without</text>
+<text x="1044" y="530" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">citing it; LLM must</text>
+<text x="1044" y="548" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">quote evidence</text>
+<text x="784" y="592" fill="#5a6580" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.16em">PLANNED · M6–M7</text>
+<text x="48" y="464" fill="#4f5d75" font-size="20" font-family="'Instrument Serif', 'Noto Serif', serif" font-style="italic">Steps 1–5 are built and run</text>
+<text x="48" y="492" fill="#4f5d75" font-size="20" font-family="'Instrument Serif', 'Noto Serif', serif" font-style="italic">without an LLM today.</text>
+<text x="48" y="536" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif">LLM is added only where a test shows it helps;</text>
+<text x="48" y="558" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif">an LLM fallback for entities was tested, not adopted.</text>
+<line x1="48" y1="648" x2="1232" y2="648" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="48" y="672" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+<rect x="160" y="660" width="24" height="16" rx="3" fill="#ffffff" stroke="#2d3142"/>
+<text x="192" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Built · rules</text>
+<rect x="325" y="660" width="24" height="16" rx="3" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+<text x="357" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Graph store</text>
+<rect x="476" y="660" width="24" height="16" rx="3" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-dasharray="4,3"/>
+<text x="508" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Planned · uses LLM</text>
+</svg>
+</div>
+</div>
+</body>
+</html>

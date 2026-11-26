@@ -43,6 +43,15 @@ class MentionList(BaseModel):
     mentions: list[ExtractedMention]
 
 
+class ImpactVerdict(BaseModel):
+    """M5 step 13: the checker's answer for one (change, candidate) pair."""
+
+    model_config = ConfigDict(extra="forbid")
+    verdict: Literal["needs_update", "not_affected", "unsure"]
+    reason: str = Field(max_length=600)
+    evidence: str = Field(max_length=600)  # quoted from the candidate passage
+
+
 @dataclass
 class CallResult:
     mentions: list[ExtractedMention] | None  # None = failure after all retries
@@ -54,6 +63,7 @@ class CallResult:
     seconds: float = 0.0
     thinking_chars: int = 0
     errors: list[str] = field(default_factory=list)
+    data: BaseModel | None = None  # the validated reply
 
 
 # A transport takes the request body and returns Ollama's /api/chat response.
@@ -93,23 +103,26 @@ class LLMClient:
     def close(self) -> None:
         self.db.close()
 
-    def _body(self, text: str) -> dict:
+    def _body(self, user_content: str, schema: type[BaseModel]) -> dict:
         return {"model": self.s.model, "stream": False, "think": self.s.think,
-                "format": MentionList.model_json_schema(), "keep_alive": "10m",
+                "format": schema.model_json_schema(), "keep_alive": "10m",
                 "options": {"num_ctx": self.s.num_ctx, "temperature": self.s.temperature},
                 "messages": [{"role": "system", "content": self.system_prompt},
-                             {"role": "user", "content": f"Passage:\n{text}"}]}
+                             {"role": "user", "content": user_content}]}
 
-    def extract_mentions(self, text: str, use_cache: bool = True) -> CallResult:
-        key = (_sha(text), self.prompt_key, self.s.model)
+    def _ask(self, key_text: str, user_content: str, schema: type[BaseModel],
+             use_cache: bool) -> CallResult:
+        """One validated call (cached by key_text, prompt and model). The parsed
+        reply is in CallResult.data; None after all retries failed."""
+        key = (_sha(key_text), self.prompt_key, self.s.model)
         if use_cache:
             row = self.db.execute(
                 "SELECT response, tokens_in, tokens_out, seconds, attempts, valid_first, "
                 "thinking_chars FROM calls WHERE content_hash=? AND prompt=? AND model=?",
                 key).fetchone()
             if row:
-                res = CallResult(MentionList.model_validate_json(row[0]).mentions,
-                                 row[4], bool(row[5]), True, row[1], row[2], row[3], row[6])
+                res = CallResult(None, row[4], bool(row[5]), True, row[1], row[2], row[3],
+                                 row[6], data=schema.model_validate_json(row[0]))
                 self.log.append(res)
                 return res
         res = CallResult(None)
@@ -117,7 +130,7 @@ class LLMClient:
         for attempt in range(1, self.s.max_retries + 2):
             res.attempts = attempt
             try:
-                reply = self.transport(self._body(text))
+                reply = self.transport(self._body(user_content, schema))
             except (urllib.error.URLError, TimeoutError, OSError) as e:
                 res.errors.append(f"transport: {type(e).__name__}")
                 continue
@@ -126,23 +139,44 @@ class LLMClient:
             msg = reply.get("message") or {}
             res.thinking_chars += len(msg.get("thinking") or "")
             try:
-                parsed = MentionList.model_validate_json(msg.get("content") or "")
+                res.data = schema.model_validate_json(msg.get("content") or "")
             except ValidationError as e:
                 res.errors.append(f"invalid: {e.error_count()} error(s)")
                 continue
-            res.mentions = parsed.mentions
             res.valid_first = attempt == 1
             break
         res.seconds = time.time() - start
-        if res.mentions is not None and use_cache:
+        if res.data is not None and use_cache:
             self.db.execute(
                 "INSERT OR REPLACE INTO calls VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))",
-                (*key, MentionList(mentions=res.mentions).model_dump_json(), res.tokens_in,
-                 res.tokens_out, res.seconds, res.attempts, int(res.valid_first),
-                 res.thinking_chars))
+                (*key, res.data.model_dump_json(), res.tokens_in, res.tokens_out, res.seconds,
+                 res.attempts, int(res.valid_first), res.thinking_chars))
             self.db.commit()
         self.log.append(res)
         return res
+
+    def extract_mentions(self, text: str, use_cache: bool = True) -> CallResult:
+        res = self._ask(text, f"Passage:\n{text}", MentionList, use_cache)
+        res.mentions = res.data.mentions if res.data is not None else None
+        return res
+
+    def check_impact(self, old_text: str, new_text: str, candidate: str, context: str,
+                     use_cache: bool = True) -> CallResult:
+        """M5 step 13: does `candidate` need updating after old_text became new_text?
+        CallResult.data is an ImpactVerdict (None after failed retries)."""
+        user = (f"CHANGED PASSAGE ({context})\nOLD:\n{old_text or '(none: the passage was added)'}"
+                f"\nNEW:\n{new_text or '(none: the passage was removed)'}\n\n"
+                f"CANDIDATE PASSAGE:\n{candidate}")
+        return self._ask(user, user, ImpactVerdict, use_cache)
+
+    @classmethod
+    def for_check(cls, settings: LLMSettings, root: Path = Path("."),
+                  transport: Transport | None = None) -> LLMClient:
+        """A client with the impact-check prompt and its context size."""
+        s = settings.model_copy(update={"prompt_file": settings.check_prompt_file,
+                                        "prompt_version": settings.check_prompt_version,
+                                        "num_ctx": settings.check_num_ctx})
+        return cls(s, root, transport)
 
 
 def _sha(text: str) -> str:

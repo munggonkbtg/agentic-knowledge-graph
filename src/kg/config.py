@@ -112,6 +112,11 @@ class LLMSettings(BaseModel):
     prompt_file: Path = Path("prompts/mentions_v1.md")
     cache_file: Path = Path("data/cache/llm.sqlite")
     confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+    # impact check (M5 step 13): its own prompt and a larger context (old + new +
+    # candidate passage)
+    check_prompt_version: str = "impact-check-v1"
+    check_prompt_file: Path = Path("prompts/impact_check_v1.md")
+    check_num_ctx: int = Field(default=4096, ge=256)
 
 
 class ImpactSettings(BaseModel):
@@ -121,6 +126,7 @@ class ImpactSettings(BaseModel):
     ranking: Literal["graph_first", "rrf"] = "graph_first"
     top_n: int = Field(default=20, ge=1)  # candidates reported per change
     report_dir: Path = Path("data/reports")  # not in git (reports quote document text)
+    check_top_n: int = Field(default=10, ge=1)  # candidates per change the LLM checks
 
 
 class AppConfig(BaseModel):

@@ -418,6 +418,10 @@ file (`m4_entity_type_coverage.csv`) is not in `data/labels/`.
 
 ## M5: impact analysis (workflow steps 10-14)
 
+(Diagram v5, `docs/diagrams/document_graph_workflow_v5_EN.drawio` and `_TH`,
+2026-11-26, shows the system as built through M5 step 2; v4 is kept for the
+record.)
+
 The scope comes from the workflow diagram v4 (steps 8-15, Part 4 "main
 experiment") and this plan; the original brief's text was not available when
 M5 started. Steps 8-9 (upload, diff) were done earlier; step 15 belongs to
@@ -493,6 +497,42 @@ M6-M7.
   longer a current block; the experiment ran on the store before event 2.
 - Event 3 gives 70 changes, not about 104: footnote entries (25 added in T1)
   are skipped by rule.
+
+**Step 3, LLM check measured offline (2026-11-26)** (decided: local
+Qwen3.5-4B, top 10 per change; `prompts/impact_check_v1.md`,
+`eval/m5_check_experiment.py`, results in `eval/results/m5_check_ai.md`;
+**scored against the AI labels**):
+- 240 checks (24 change items x top 10 graph-first), 15 min, 3.7 s and about
+  860 / 60 tokens per call, JSON valid 235 / 235, no thinking text, 100% GPU
+  with num_ctx 4096. The model never answered "unsure".
+- Verdicts: labelled positives 21 needs_update / 24 not_affected; judged
+  negatives 9 / 72; historical 9 / 0; unjudged 3 / 102. The list shrinks from
+  10 to a median of 1 per change.
+- Recall of needs_review pairs drops from 0.90 (top 10) to **0.42** after the
+  check; of the kept judged candidates 21 / 30 are positive.
+- By kind: states with needs_revision yes kept 4 / 4; cites kept 13 / 33
+  (citing blocks whose text stays correct are mostly called not_affected,
+  which matches "needs update" but not "needs review"); 3 cites blocks that do
+  need revision were called not_affected; depends kept 2 / 5.
+- Prompt rule 4 (historical text is not affected) is ignored: all 9 historical
+  blocks were called needs_update because they repeat the old value.
+- Evidence quoted from the candidate was found in it for 37 / 42 kept.
+- Reading: the checker answers "does the text need changing", which is closer
+  to needs_revision (8 / 11 checked) than to needs_review. As a hard filter it
+  would hide most blocks a person should look at. Not run on the 116 graph
+  changes yet.
+- **Decided 2026-11-26 (user): the checker labels, it does not filter.**
+  `kg impact --check` keeps every reported candidate; the top
+  `impact.check_top_n` get verdict, reason and evidence; inside that top, blocks
+  marked needs_update move first, except historical blocks (rule in code,
+  `src/kg/historical.py`, because the model ignored the prompt rule).
+- First run on the graph, event 1 (E1, 31 changes): `kg impact --doc
+  en-benefits-and-perks --check`, 310 checks in 16 min (about 200K tokens):
+  10 needs_update in 6 of 31 changes, now at ranks 1-4; 300 not_affected; 4
+  historical rows flagged. The evidence check first failed on 8 of 10 quotes
+  because the documents use curly apostrophes and the model straight ones, and
+  some quotes join fragments with "..."; `evidence_in` now normalizes both:
+  10 / 10 found. Events 2 and 3 not checked yet (about 850 checks, ~50 min).
 
 ## Open items carried forward
 

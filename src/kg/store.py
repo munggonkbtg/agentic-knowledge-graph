@@ -313,6 +313,21 @@ class Store:
         return {"blocks": len(new_blocks), "reused_nodes": len(reuse),
                 "new_nodes": len(new_blocks) - len(reuse)}
 
+    def confirm_identification(self, file_hash: str, doc_key: str, answer: str,
+                               confirmed_at: datetime) -> int:
+        """Record a person's answer for a file that was uploaded but listed for
+        confirmation: on the HAS_VERSION edge of the version with this file hash,
+        identification_confirmed = 'person', the answer and the time. Returns the
+        number of edges updated (0 when the file is not in the graph)."""
+        rec = self._run(
+            """
+            MATCH (d:Document {doc_key: $k})-[r:HAS_VERSION]->(v:Version {file_hash: $h})
+            SET r.identification_confirmed = 'person', r.identification_answer = $a,
+                r.identification_confirmed_at = $t
+            RETURN count(r) AS n
+            """, k=doc_key, h=file_hash, a=answer, t=confirmed_at)
+        return rec.records[0]["n"]
+
     # -- M5: embeddings, current blocks, vector search ----------------------
 
     def current_body_blocks(self) -> list[dict[str, object]]:

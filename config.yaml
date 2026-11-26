@@ -138,6 +138,10 @@ llm:
   prompt_file: prompts/mentions_v1.md
   cache_file: data/cache/llm.sqlite
   confidence: 0.6        # PROVISIONAL, below registry matches (0.8)
+  # Impact check (M5 step 13, decided 2026-11-26: local model, top 10 per change)
+  check_prompt_version: impact-check-v1
+  check_prompt_file: prompts/impact_check_v1.md
+  check_num_ctx: 4096    # old + new + candidate passage
 
 impact:
   # M5 ranking of candidate blocks (src/kg/impact.py). Decided by the user
@@ -146,3 +150,4 @@ impact:
   ranking: graph_first
   top_n: 20             # candidates reported per change (step 13 will cut this list)
   report_dir: data/reports   # not in git: reports quote document text
+  check_top_n: 10       # candidates per change the LLM checks (user decision 2026-11-26)

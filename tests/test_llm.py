@@ -109,3 +109,30 @@ def test_threshold_decides_which_blocks_go_to_the_llm(tmp_path):
     assert fb.entities_for("text", "en", registry_entities={"concept:en:x"}) == set()
     assert fake.requests == [] and fb.stats.blocks_called == 0
     assert not LLMFallback(EntityRegistry(), None, max_entities=None).needs_llm(0)
+
+
+def test_impact_check_uses_its_own_prompt_schema_and_context(tmp_path):
+    from kg.llm import ImpactVerdict
+
+    reply = json.dumps({"verdict": "needs_update", "reason": "repeats the old value",
+                        "evidence": "18 days"})
+    fake = Fake(_reply(reply), _reply('{"verdict": "maybe", "reason": "", "evidence": ""}'),
+                _reply('{"verdict": "maybe", "reason": "", "evidence": ""}'),
+                _reply('{"verdict": "maybe", "reason": "", "evidence": ""}'))
+    s = LLMSettings(cache_file=tmp_path / "llm.sqlite", prompt_file=ROOT / "prompts/mentions_v1.md",
+                    check_prompt_file=ROOT / "prompts/impact_check_v1.md")
+    c = LLMClient.for_check(s, root=ROOT, transport=fake)
+    res = c.check_impact("18 days", "25 days", "New hires get 18 days.", "doc > Vacation")
+    assert res.data.verdict == "needs_update" and res.data.evidence == "18 days"
+    body = fake.requests[0]
+    assert body["format"] == ImpactVerdict.model_json_schema()
+    assert body["options"]["num_ctx"] == s.check_num_ctx
+    assert c.prompt_key.startswith("impact-check-v1#")
+    assert "OLD:\n18 days" in body["messages"][1]["content"]
+    # removed passage: NEW says so; an invalid verdict is retried, then a failure
+    bad = c.check_impact("old rule", "", "a candidate", "doc > A")
+    assert bad.data is None and bad.attempts == s.max_retries + 1
+    assert "(none: the passage was removed)" in fake.requests[1]["messages"][1]["content"]
+    # cached by the whole input
+    again = c.check_impact("18 days", "25 days", "New hires get 18 days.", "doc > Vacation")
+    assert again.cached and again.data.verdict == "needs_update"

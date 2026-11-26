@@ -385,3 +385,15 @@ def test_embeddings_and_vector_search(store, prefix, tmp_path):
     assert store.write_embeddings([(uids[0], a), (uids[1], b)], "test-model") == 2
     hits = [u for u, _ in store.vector_search(a, 50) if u in uids]
     assert hits[0] == uids[0]
+
+
+def test_person_confirmation_is_recorded_on_has_version(store, prefix, tmp_path):
+    key = prefix + "new"
+    doc = parse_file(_file(tmp_path, "n.md", key, "New", f"## A\n\n{P1}\n"), CFG.layer0, T1)
+    store.write_layer0(doc)
+    assert store.confirm_identification(doc.version.file_hash, key, "new", T2) == 1
+    r = store._run("MATCH (:Document {doc_key: $k})-[r:HAS_VERSION]->() "
+                   "RETURN r.identification_confirmed AS c, r.identification_answer AS a",
+                   k=key).records[0]
+    assert (r["c"], r["a"]) == ("person", "new")
+    assert store.confirm_identification("no-such-hash", key, "new", T2) == 0

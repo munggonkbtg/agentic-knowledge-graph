@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A new version arrives: what else must change?</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Geist', system-ui, sans-serif; background: #f5f5f5; color: #2d3142; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.frame { max-width: 1280px; width: 100%; }
+.diagram-container { width: 100%; overflow-x: auto; }
+svg { width: 100%; min-width: 1280px; display: block; }
+@media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="diagram-container">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kg-impact-en-title kg-impact-en-desc">
+<title id="kg-impact-en-title">A new version arrives: what else must change?</title>
+<desc id="kg-impact-en-desc">Impact analysis in eight steps, from upload and diff through graph-based candidate search to human review.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<text x="48" y="64" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.16em">PART 2 · USE THE GRAPH</text>
+<text x="48" y="112" fill="#2d3142" font-size="40" font-family="'Instrument Serif', 'Noto Serif', serif">A new version arrives: what else must change?</text>
+<path d="M 320 242 L 352 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 624 242 L 656 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 928 242 L 960 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 1096 316 L 1096 408" fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<rect x="1100" y="354" width="96" height="16" rx="2" fill="#f5f5f5"/>
+<text x="1106" y="366" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">CANDIDATES</text>
+<path d="M 960 482 L 928 482" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 656 482 L 624 482" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 352 482 L 320 482" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<rect x="48" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="60" y="180" width="60" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="90.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">8 · DONE</text>
+<text x="64" y="224" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Upload &amp; identify</text>
+<text x="64" y="248" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">new file → which document?</text>
+<text x="64" y="266" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">new version supersedes old</text>
+<rect x="352" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="352" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="364" y="180" width="60" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="394.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">9 · DONE</text>
+<text x="368" y="224" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Match &amp; diff</text>
+<text x="368" y="248" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">old vs new blocks:</text>
+<text x="368" y="266" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">same / edited / moved</text>
+<text x="368" y="284" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">/ removed / added</text>
+<rect x="656" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="656" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="668" y="180" width="68" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="702.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">10 · DONE</text>
+<text x="672" y="224" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Light update</text>
+<text x="672" y="248" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">references, entities and</text>
+<text x="672" y="266" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">vectors for new blocks</text>
+<rect x="960" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="960" y="168" width="272" height="148" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1.2"/>
+<rect x="972" y="180" width="68" height="16" rx="2" fill="none" stroke="#bf4520" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1006.0" y="191" fill="#bf4520" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">11 · DONE</text>
+<text x="976" y="224" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Find candidates</text>
+<text x="976" y="248" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">graph: cites it, states the</text>
+<text x="976" y="266" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">old value, shares an entity</text>
+<text x="976" y="284" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">+ text &amp; vector search</text>
+<rect x="960" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="960" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="972" y="420" width="68" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1006.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">12 · DONE</text>
+<text x="976" y="464" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Rank</text>
+<text x="976" y="488" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">graph signals first,</text>
+<text x="976" y="506" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">then search score</text>
+<rect x="656" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="656" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="668" y="420" width="84" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="710.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">13 · TESTING</text>
+<text x="672" y="464" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">LLM check</text>
+<text x="672" y="488" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">needs update / not affected</text>
+<text x="672" y="506" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">/ unsure + quoted reason</text>
+<rect x="352" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="352" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="364" y="420" width="80" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="404.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">14 · PARTLY</text>
+<text x="368" y="464" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Report &amp; review</text>
+<text x="368" y="488" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">CSV of blocks to check;</text>
+<text x="368" y="506" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">a person approves / rejects</text>
+<rect x="48" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="408" width="272" height="148" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="60" y="420" width="84" height="16" rx="2" fill="none" stroke="#5a6580" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="102.0" y="431" fill="#5a6580" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">15 · PLANNED</text>
+<text x="64" y="464" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Full update</text>
+<text x="64" y="488" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">merge entities, dependencies</text>
+<text x="64" y="506" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">close old links (M6–M7)</text>
+<text x="48" y="610" fill="#4f5d75" font-size="18" font-family="'Instrument Serif', 'Noto Serif', serif" font-style="italic">Graph-first ranking: 66% of affected blocks in the top 5, vs 28% for text search alone.</text>
+<text x="48" y="634" fill="#5a6580" font-size="11" font-family="'Geist', system-ui, sans-serif">Recall@5 on the AI-labelled change test set; not yet checked by a person.</text>
+<line x1="48" y1="648" x2="1232" y2="648" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="48" y="672" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+<rect x="160" y="660" width="24" height="16" rx="3" fill="#ffffff" stroke="#2d3142"/>
+<text x="192" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Step</text>
+<rect x="260" y="660" width="24" height="16" rx="3" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+<text x="292" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Where the graph pays off</text>
+<rect x="504" y="660" width="24" height="16" rx="3" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-dasharray="4,3"/>
+<text x="536" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Planned</text>
+</svg>
+</div>
+</div>
+</body>
+</html>

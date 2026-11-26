@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>มีเวอร์ชันใหม่: เอกสารส่วนไหนต้องแก้ตาม</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&family=Noto+Sans+Thai:wght@400;500;600&family=Noto+Serif+Thai:wght@400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Geist', 'Noto Sans Thai', system-ui, sans-serif; background: #f5f5f5; color: #2d3142; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.frame { max-width: 1280px; width: 100%; }
+.diagram-container { width: 100%; overflow-x: auto; }
+svg { width: 100%; min-width: 1280px; display: block; }
+@media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="diagram-container">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kg-impact-th-title kg-impact-th-desc">
+<title id="kg-impact-th-title">มีเวอร์ชันใหม่: เอกสารส่วนไหนต้องแก้ตาม</title>
+<desc id="kg-impact-th-desc">การวิเคราะห์ผลกระทบแปดขั้นตอน ตั้งแต่อัปโหลด เทียบความต่าง ค้นหาผ่านกราฟ จนถึงคนตรวจทาน</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<text x="48" y="64" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="500">ส่วนที่ 2 · ใช้งานกราฟ</text>
+<text x="48" y="112" fill="#2d3142" font-size="40" font-family="'Instrument Serif', 'Noto Serif Thai', serif">มีเวอร์ชันใหม่: เอกสารส่วนไหนต้องแก้ตาม</text>
+<path d="M 320 242 L 352 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 624 242 L 656 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 928 242 L 960 242" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 1096 316 L 1096 408" fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<rect x="1100" y="352" width="108" height="20" rx="2" fill="#f5f5f5"/>
+<text x="1106" y="366" fill="#5a6580" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="500">บล็อกที่อาจกระทบ</text>
+<path d="M 960 482 L 928 482" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 656 482 L 624 482" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 352 482 L 320 482" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<rect x="48" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="60" y="180" width="60" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="90.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">8 · DONE</text>
+<text x="64" y="224" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">อัปโหลด และระบุเอกสาร</text>
+<text x="64" y="248" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">ไฟล์ใหม่คือเอกสารใด</text>
+<text x="64" y="268" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">เวอร์ชันใหม่แทนเวอร์ชันเก่า</text>
+<rect x="352" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="352" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="364" y="180" width="60" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="394.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">9 · DONE</text>
+<text x="368" y="224" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">เทียบความต่าง</text>
+<text x="368" y="248" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">จับคู่บล็อกเก่ากับใหม่</text>
+<text x="368" y="268" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">เหมือนเดิม / แก้ / ย้าย</text>
+<text x="368" y="288" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">/ ลบ / เพิ่ม</text>
+<rect x="656" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="656" y="168" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="668" y="180" width="68" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="702.0" y="191" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">10 · DONE</text>
+<text x="672" y="224" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">อัปเดตเบื้องต้น</text>
+<text x="672" y="248" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">สร้างการอ้างอิง คำสำคัญ</text>
+<text x="672" y="268" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">และเวกเตอร์ให้บล็อกใหม่</text>
+<rect x="960" y="168" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="960" y="168" width="272" height="148" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1.2"/>
+<rect x="972" y="180" width="68" height="16" rx="2" fill="none" stroke="#bf4520" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1006.0" y="191" fill="#bf4520" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">11 · DONE</text>
+<text x="976" y="224" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">หาบล็อกที่อาจกระทบ</text>
+<text x="976" y="248" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">กราฟ: อ้างถึง, ระบุค่าเดิม,</text>
+<text x="976" y="268" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">มีคำสำคัญร่วมกัน</text>
+<text x="976" y="288" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">+ ค้นข้อความและเวกเตอร์</text>
+<rect x="960" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="960" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="972" y="420" width="68" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1006.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">12 · DONE</text>
+<text x="976" y="464" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">จัดอันดับ</text>
+<text x="976" y="488" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">สัญญาณจากกราฟก่อน</text>
+<text x="976" y="508" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">แล้วจึงคะแนนการค้นหา</text>
+<rect x="656" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="656" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="668" y="420" width="84" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="710.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">13 · TESTING</text>
+<text x="672" y="464" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">LLM ตรวจสอบ</text>
+<text x="672" y="488" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">ต้องแก้ / ไม่กระทบ / ไม่แน่ใจ</text>
+<text x="672" y="508" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">พร้อมเหตุผลและหลักฐาน</text>
+<rect x="352" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="352" y="408" width="272" height="148" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="364" y="420" width="80" height="16" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="404.0" y="431" fill="#2d3142" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">14 · PARTLY</text>
+<text x="368" y="464" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">รายงาน และคนตรวจ</text>
+<text x="368" y="488" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">CSV รายการบล็อกที่ต้องดู</text>
+<text x="368" y="508" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">คนอนุมัติ / ปฏิเสธ</text>
+<rect x="48" y="408" width="272" height="148" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="408" width="272" height="148" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="60" y="420" width="84" height="16" rx="2" fill="none" stroke="#5a6580" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="102.0" y="431" fill="#5a6580" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">15 · PLANNED</text>
+<text x="64" y="464" fill="#2d3142" font-size="16" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="600">อัปเดตเต็มรูปแบบ</text>
+<text x="64" y="488" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">รวมคำซ้ำ และการพึ่งพา</text>
+<text x="64" y="508" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">ปิดเส้นเก่า (M6–M7)</text>
+<text x="48" y="610" fill="#4f5d75" font-size="18" font-family="'Instrument Serif', 'Noto Serif Thai', serif">จัดอันดับด้วยกราฟก่อน: พบบล็อกที่กระทบ 66% ใน 5 อันดับแรก เทียบกับ 28% เมื่อค้นข้อความอย่างเดียว</text>
+<text x="48" y="634" fill="#5a6580" font-size="11" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">Recall@5 บนชุดทดสอบที่ AI ติดป้าย ยังไม่ได้ให้คนตรวจ</text>
+<line x1="48" y1="648" x2="1232" y2="648" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="48" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif" font-weight="500">คำอธิบาย</text>
+<rect x="160" y="660" width="24" height="16" rx="3" fill="#ffffff" stroke="#2d3142"/>
+<text x="192" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">ขั้นตอน</text>
+<rect x="268" y="660" width="24" height="16" rx="3" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+<text x="300" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">จุดที่กราฟช่วยมากที่สุด</text>
+<rect x="455" y="660" width="24" height="16" rx="3" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.45)" stroke-dasharray="4,3"/>
+<text x="487" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans Thai', system-ui, sans-serif">อยู่ในแผน</text>
+</svg>
+</div>
+</div>
+</body>
+</html>

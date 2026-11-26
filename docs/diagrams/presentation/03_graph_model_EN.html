@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocks, the names they mention, and what they cite</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Geist', system-ui, sans-serif; background: #f5f5f5; color: #2d3142; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.frame { max-width: 1280px; width: 100%; }
+.diagram-container { width: 100%; overflow-x: auto; }
+svg { width: 100%; min-width: 1280px; display: block; }
+@media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="diagram-container">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kg-model-en-title kg-model-en-desc">
+<title id="kg-model-en-title">Blocks, the names they mention, and what they cite</title>
+<desc id="kg-model-en-desc">Data model of documents, versions, sections, blocks, entities and aliases, with an annual-leave example.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<text x="48" y="64" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.16em">WHAT THE GRAPH CONTAINS</text>
+<text x="48" y="112" fill="#2d3142" font-size="40" font-family="'Instrument Serif', 'Noto Serif', serif">Blocks, the names they mention, and what they cite</text>
+<path d="M 140 240 L 140 296" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="144" y="260" width="104" height="16" rx="2" fill="#f5f5f5"/>
+<text x="150" y="272" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">HAS_VERSION</text>
+<path d="M 140 368 L 140 424" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="144" y="388" width="80" height="16" rx="2" fill="#f5f5f5"/>
+<text x="150" y="400" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">CONTAINS</text>
+<path d="M 232 468 L 312 468" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="232" y="436" width="80" height="16" rx="2" fill="#f5f5f5"/>
+<text x="272" y="448" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">CONTAINS</text>
+<path d="M 392 424 L 392 212 Q 392 204 384 204 L 232 204" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+<rect x="396" y="292" width="96" height="16" rx="2" fill="#f5f5f5"/>
+<text x="402" y="304" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">REFERENCES</text>
+<path d="M 512 468 L 600 468" fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<rect x="516" y="436" width="80" height="16" rx="2" fill="#f5f5f5"/>
+<text x="556" y="448" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">MENTIONS</text>
+<path d="M 688 240 L 688 424" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="692" y="324" width="80" height="16" rx="2" fill="#f5f5f5"/>
+<text x="698" y="336" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">ALIAS_OF</text>
+<path d="M 432 512 L 432 568 Q 432 576 440 576 L 472 576 Q 480 576 480 568 L 480 512" fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+<rect x="380" y="592" width="152" height="16" rx="2" fill="#f5f5f5"/>
+<text x="456" y="604" fill="#5a6580" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">DEPENDS · PLANNED</text>
+<rect x="48" y="168" width="184" height="72" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="168" width="184" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<text x="64" y="200" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Document</text>
+<text x="64" y="224" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">e.g. HR Policy</text>
+<rect x="48" y="296" width="184" height="72" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="296" width="184" height="72" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<text x="64" y="328" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Version</text>
+<text x="64" y="352" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">one uploaded file</text>
+<rect x="48" y="424" width="184" height="88" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="424" width="184" height="88" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<text x="64" y="456" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Section</text>
+<text x="64" y="480" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">a heading</text>
+<rect x="312" y="424" width="200" height="88" rx="6" fill="#f5f5f5"/>
+<rect x="312" y="424" width="200" height="88" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1.2"/>
+<text x="328" y="456" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Block</text>
+<text x="328" y="480" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">paragraph, table, list</text>
+<rect x="600" y="424" width="176" height="88" rx="6" fill="#f5f5f5"/>
+<rect x="600" y="424" width="176" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<text x="616" y="456" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Entity</text>
+<text x="616" y="480" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">concept, role,</text>
+<text x="616" y="498" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">artifact</text>
+<rect x="600" y="168" width="176" height="72" rx="6" fill="#f5f5f5"/>
+<rect x="600" y="168" width="176" height="72" rx="6" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
+<text x="616" y="200" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Alias</text>
+<text x="616" y="224" fill="#4f5d75" font-size="12" font-family="'Geist Mono', ui-monospace, monospace">Thai / English name</text>
+<rect x="840" y="152" width="392" height="460" rx="6" fill="#ffffff" stroke="#bfc0c0" stroke-width="1"/>
+<text x="860" y="184" fill="#bf4520" font-size="12" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.12em">EXAMPLE · LEAVE 10 → 12 DAYS</text>
+<text x="860" y="212" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif">HR Policy v4 edits block A-12:</text>
+<text x="860" y="234" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif" font-style="italic">“Annual leave is 10 days a year.”</text>
+<line x1="860" y1="264" x2="1212" y2="264" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="860" y="294" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Onboarding guide</text>
+<text x="860" y="318" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif">“For leave rules, see the HR Policy.”</text>
+<text x="860" y="344" fill="#bf4520" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="500">✓ found via REFERENCES</text>
+<line x1="860" y1="372" x2="1212" y2="372" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="860" y="402" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Staff FAQ (Thai)</text>
+<text x="860" y="426" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif">“พนักงานลาพักร้อนได้ 10 วัน”</text>
+<text x="860" y="452" fill="#bf4520" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="500">✓ found via the value 10 days</text>
+<line x1="860" y1="480" x2="1212" y2="480" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="860" y="510" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Budget guide</text>
+<text x="860" y="534" fill="#4f5d75" font-size="14" font-family="'Geist', system-ui, sans-serif">“budget = headcount × leave days”</text>
+<text x="860" y="560" fill="#5a6580" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="500">○ needs DEPENDS · planned</text>
+<line x1="48" y1="648" x2="1232" y2="648" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+<text x="48" y="672" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+<line x1="160" y1="668" x2="184" y2="668" stroke="#4f5d75" stroke-width="1.2"/>
+<text x="192" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Built</text>
+<line x1="268" y1="668" x2="292" y2="668" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4"/>
+<text x="300" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Planned</text>
+<rect x="390" y="660" width="24" height="16" rx="3" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+<text x="422" y="672" fill="#4f5d75" font-size="12" font-family="'Geist', system-ui, sans-serif">Block = unit of change</text>
+</svg>
+</div>
+</div>
+</body>
+</html>

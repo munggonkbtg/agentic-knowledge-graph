@@ -248,6 +248,43 @@ def _build_layer2(config: Path) -> None:
                 fg="green")
 
 
+@app.command("confirm-queue")
+def confirm_queue(config: Path = ConfigOption) -> None:
+    """Record a person's answers for files that were uploaded and listed for
+    confirmation (queue status "confirm: uploaded as <key>"). The answer must be
+    `new` or the same doc_key; anything else is reported and not applied (to move
+    a version to another document, delete and re-upload it)."""
+    import csv as _csv
+
+    cfg = load_config(config)
+    queue = cfg.identify.queue_file
+    if not queue.exists():
+        typer.echo("No queue file.")
+        return
+    with queue.open(encoding="utf-8-sig", newline="") as f:
+        rows = list(_csv.DictReader(f))
+    done = 0
+    try:
+        with _open_store(config) as store:
+            for r in rows:
+                status, answer = r["status"], r["answer"].strip()
+                if not status.startswith("confirm: uploaded as ") or not answer:
+                    continue
+                key = status.removeprefix("confirm: uploaded as ").split(" ")[0]
+                if answer not in ("new", key):
+                    typer.secho(f"  {r['file']}: answer {answer!r} differs from {key}; "
+                                "not applied", fg="yellow")
+                    continue
+                n = store.confirm_identification(r["file_hash"], key, answer,
+                                                 datetime.now(timezone.utc))
+                typer.echo(f"  {r['file']}: {key} confirmed ({answer}), {n} edge(s)")
+                done += n
+    except (AuthError, ServiceUnavailable) as e:
+        _connection_error(e)
+        return
+    typer.secho(f"{done} identification(s) confirmed.", fg="green")
+
+
 @app.command()
 def embed(config: Path = ConfigOption) -> None:
     """Write e5 embeddings on the body blocks of every document's current version
@@ -278,18 +315,27 @@ def embed(config: Path = ConfigOption) -> None:
 def impact(
     doc: list[str] = typer.Option(..., "--doc", help="doc_key of an uploaded document "
                                   "(repeat for every document of the upload event)"),
+    check: bool = typer.Option(False, "--check", help="LLM check (step 13) of the top "
+                               "impact.check_top_n candidates per change: verdict, reason and "
+                               "evidence as columns; nothing is removed"),
     config: Path = ConfigOption,
 ) -> None:
-    """Impact analysis for the current version of each --doc (workflow steps 11-12):
+    """Impact analysis for the current version of each --doc (workflow steps 11-13):
     candidate blocks from the graph (valid REFERENCES, MENTIONS and values), then
     hybrid search (character trigrams + e5 vector index), ranked as set in
-    config `impact.ranking`. Writes a CSV report under `impact.report_dir`.
+    config `impact.ranking`. With --check, the local LLM labels the top
+    `impact.check_top_n` candidates (needs_update / not_affected / unsure, reason,
+    evidence); needs_update moves first inside that top, except historical blocks;
+    no candidate is dropped. Writes a CSV report under `impact.report_dir`.
     Needs the `embed` dependency group: uv run --group embed kg impact --doc ..."""
     import csv as _csv
 
     from kg.embedding import Embedder
+    from kg.historical import historical_reason
     from kg.impact import (SIGNALS, Char3Index, GraphView, changes_from_stored_diff,
-                           graph_first, graph_signals, impact_ranking, rrf)
+                           evidence_in, graph_first, graph_signals, impact_ranking,
+                           order_after_check, rrf)
+    from kg.llm import LLMClient
 
     cfg = load_config(config)
     try:
@@ -319,6 +365,10 @@ def impact(
             cands = {u: b["text"] for u, b in info.items() if u not in changed_uids}
             char3 = Char3Index(cands)
             emb = Embedder(cfg.embedding)
+            title = {d.document.doc_key: d.document.title for d in docs}
+            historical = {u for u, b in info.items()
+                          if historical_reason(title.get(b["doc_key"], ""), b["text"])}
+            checker = LLMClient.for_check(cfg.llm) if check else None
             rows = []
             for k, it in items:
                 query = it.old_text + "\n" + it.new_text
@@ -328,8 +378,29 @@ def impact(
                 sig = graph_signals(view, it, set(cands))
                 order = (graph_first(sig, hybrid) if cfg.impact.ranking == "graph_first"
                          else impact_ranking(sig, hybrid))
+                verdicts: dict[str, object] = {}
+                if checker is not None:
+                    context = f"{it.doc_key} > {it.section_path}"
+                    for u in order[: cfg.impact.check_top_n]:
+                        res = checker.check_impact(it.old_text, it.new_text, info[u]["text"],
+                                                   context)
+                        verdicts[u] = res.data
+                    order = order_after_check(
+                        order, {u: v.verdict for u, v in verdicts.items() if v}, historical,
+                        cfg.impact.check_top_n)
                 for rank, u in enumerate(order[: cfg.impact.top_n], start=1):
                     b = info[u]
+                    v = verdicts.get(u)
+                    checked = {}
+                    if checker is not None:
+                        ev = (v.evidence if v else "") or ""
+                        checked = {
+                            "verdict": (v.verdict if v else
+                                        ("failed" if u in verdicts else "not checked")),
+                            "reason": v.reason if v else "",
+                            "evidence": ev,
+                            "evidence_in_block": evidence_in(ev, b["text"]),
+                            "historical": u in historical}
                     rows.append({
                         "document": k, "change": it.change_id, "changed_section": it.section_path,
                         "changed_block_uid": it.block_uid,
@@ -337,6 +408,7 @@ def impact(
                         "block_uid": u,
                         "lines": f"{b['line_start']}-{b['line_end']}",
                         "signals": ";".join(s for s in SIGNALS if u in sig[s]) or "hybrid",
+                        **checked,
                         "text": b["text"][:200].replace("\n", " ")})
                 typer.echo(f"  {k} {it.change_id} ({it.section_path}): "
                            f"{sum(1 for s in SIGNALS for _ in sig[s])} graph hits, "
@@ -344,6 +416,12 @@ def impact(
     except (AuthError, ServiceUnavailable) as e:
         _connection_error(e)
         return
+    if checker is not None:
+        calls = [c for c in checker.log if not c.cached]
+        typer.echo(f"  LLM check: {len(checker.log)} checks ({len(calls)} new), "
+                   f"{sum(c.tokens_in + c.tokens_out for c in calls)} tokens, "
+                   f"{sum(c.seconds for c in calls) / 60:.1f} min")
+        checker.close()
     cfg.impact.report_dir.mkdir(parents=True, exist_ok=True)
     out = cfg.impact.report_dir / f"impact_{'_'.join(doc)}_{datetime.now():%Y%m%d-%H%M%S}.csv"
     with out.open("w", encoding="utf-8-sig", newline="") as f:

@@ -277,3 +277,31 @@ def changes_from_stored_diff(doc_key: str, diff: dict, language: str) -> list[Ch
                               where.split("::")[1] if "::" in where else "_",
                               r["old_text"] or "", "", language, r["uid"]))
     return out
+
+
+def order_after_check(order: list[str], verdicts: dict[str, str], historical: set[str],
+                      top: int) -> list[str]:
+    """M5 step 13 as a label, not a filter (decided 2026-11-26): every candidate
+    stays. Inside the checked top, blocks the checker marked needs_update come
+    first (stable), except historical blocks; the rest keeps its order."""
+    head, tail = order[:top], order[top:]
+    first = [u for u in head if verdicts.get(u) == "needs_update" and u not in historical]
+    return first + [u for u in head if u not in set(first)] + tail
+
+
+_QUOTES = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"',
+                         "\u0093": '"', "\u0094": '"'})
+
+
+def evidence_in(evidence: str, text: str) -> bool:
+    """The checker's quoted evidence occurs in the candidate block: compared in
+    compact form (no spaces, Arabic digits), case-insensitive, with curly and
+    straight quotes treated alike; a quote that joins fragments with '...' or
+    '…' counts when every fragment occurs."""
+    def norm(s: str) -> str:
+        return compact(s.translate(_QUOTES))[0].lower().strip("\"'")
+
+    body = norm(text)
+    parts = [norm(p) for p in re.split(r"\.\.\.|…", evidence)]
+    parts = [p for p in parts if p]
+    return bool(parts) and all(p in body for p in parts)
